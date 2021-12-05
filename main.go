@@ -121,17 +121,51 @@ func queryGH(pf flag.PassedFlags) error {
 
 	var query struct {
 		Viewer struct {
-			Login     githubv4.String
-			CreatedAt githubv4.DateTime
+			StarredRepositories struct {
+				Nodes []struct {
+					Description      githubv4.String
+					HomepageURL      githubv4.String
+					NameWithOwner    githubv4.String
+					PushedAt         githubv4.DateTime
+					RepositoryTopics struct {
+						Nodes []struct {
+							URL   githubv4.String
+							Topic struct {
+								Name githubv4.String
+							}
+						}
+					} `graphql:"repositoryTopics(first: 10)"`
+					Stargazers struct {
+						TotalCount githubv4.Int
+					}
+					UpdatedAt githubv4.DateTime
+					Url       githubv4.String
+				}
+				PageInfo struct {
+					EndCursor   githubv4.String
+					HasNextPage githubv4.Boolean
+				}
+			} `graphql:"starredRepositories(first: 2, orderBy: {field:STARRED_AT, direction:DESC}, after: $starredRepositoriesCursor)"`
 		}
 	}
 
-	err := client.Query(ctx, &query, nil)
-	if err != nil {
-		return fmt.Errorf("query err: %w", err)
+	variables := map[string]interface{}{
+		"starredRepositoriesCursor": (*githubv4.String)(nil),
 	}
-	fmt.Println("    Login:", query.Viewer.Login)
-	fmt.Println("CreatedAt:", query.Viewer.CreatedAt)
+
+	for i := 0; i < 2; i++ {
+		err := client.Query(ctx, &query, variables)
+		if err != nil {
+			return fmt.Errorf("query err: %w", err)
+		}
+		fmt.Printf("NameWithOwner: %s\n", query.Viewer.StarredRepositories.Nodes[0].NameWithOwner)
+
+		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
+			break
+		}
+		variables["starredRepositoriesCursor"] = githubv4.NewString(query.Viewer.StarredRepositories.PageInfo.EndCursor)
+	}
+
 	return nil
 
 }

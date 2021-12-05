@@ -134,3 +134,23 @@ https://docs.github.com/en/graphql/reference/queries
 https://docs.github.com/en/graphql/guides/forming-calls-with-graphql
 
 https://graphql.org/learn/pagination/ explains the edges and cursor pagination really well. - can also get pageInfo.hasNextPage
+
+It looks like github's pageInfo does include endCursor to get to the next page - let's try it
+
+```
+{
+  viewer {
+    starredRepositories(first: 2, orderBy: {field:STARRED_AT, direction:DESC}, after:"Y3Vyc29yOnYyOpK5MjAyMS0xMi0wNFQxMjo1ODo1OC0wODowMM4STfEt") {
+      nodes {
+        nameWithOwner
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}
+```
+
+And that works
