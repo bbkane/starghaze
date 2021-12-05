@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -41,8 +42,9 @@ func queryGH(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
 	maxPages := pf["--max-pages"].(int)
+	output := pf["--output"].(string)
 
-	ctx := context.Background()
+	ctx := context.Background() // TODO: paramaterize
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
@@ -87,12 +89,14 @@ func queryGH(pf flag.PassedFlags) error {
 		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
 	}
 
+	var starredRepos []starredRepository
 	for i := 0; i < maxPages; i++ {
 		err := client.Query(ctx, &query, variables)
 		if err != nil {
 			return fmt.Errorf("query err: %w", err)
 		}
-		fmt.Printf("NameWithOwner: %s\n", query.Viewer.StarredRepositories.Nodes[0].NameWithOwner)
+
+		starredRepos = append(starredRepos, query.Viewer.StarredRepositories.Nodes...)
 
 		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
 			break
@@ -100,19 +104,27 @@ func queryGH(pf flag.PassedFlags) error {
 		variables["starredRepositoriesCursor"] = githubv4.NewString(query.Viewer.StarredRepositories.PageInfo.EndCursor)
 	}
 
+	buf, err := json.MarshalIndent(starredRepos, "", "  ")
+	if err != nil {
+		return fmt.Errorf("json marshall err: %w", err)
+	}
+
+	fp, err := os.Create(output)
+	if err != nil {
+		return fmt.Errorf("file open err: %w", err)
+	}
+	defer fp.Close()
+
+	_, err = fp.Write(buf)
+	if err != nil {
+		return fmt.Errorf("file write err: %w", err)
+	}
+
 	return nil
 
 }
 
 func main() {
-	sharedFlags := flag.FlagMap{
-		"--token": flag.New(
-			"Github PAT",
-			value.String,
-			flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
-			flag.Required(),
-		),
-	}
 	app := warg.New(
 		"starghaze",
 		section.New(
@@ -121,8 +133,13 @@ func main() {
 				"query",
 				"Save the starred Repo information",
 				queryGH,
-				command.ExistingFlags(
-					sharedFlags,
+
+				command.Flag(
+					"--token",
+					"Github PAT",
+					value.String,
+					flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
+					flag.Required(),
 				),
 				command.Flag(
 					"--page-size",
@@ -136,6 +153,13 @@ func main() {
 					"Max number of pages to fetch",
 					value.Int,
 					flag.Default("2"),
+					flag.Required(),
+				),
+				command.Flag(
+					"--output",
+					"output file",
+					value.Path,
+					flag.Default("/dev/stdout"),
 					flag.Required(),
 				),
 			),
