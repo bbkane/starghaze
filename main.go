@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -10,7 +11,9 @@ import (
 	"gopkg.in/gorp.v1"
 	_ "modernc.org/sqlite"
 
+	"github.com/google/go-github/v41/github"
 	migrate "github.com/rubenv/sql-migrate"
+	"golang.org/x/oauth2"
 
 	"github.com/bbkane/warg"
 	"github.com/bbkane/warg/command"
@@ -45,6 +48,7 @@ func printVersion(_ flag.PassedFlags) error {
 
 func init_(pf flag.PassedFlags) error {
 	dbPath := pf["--db"].(string)
+	token := pf["--token"].(string)
 
 	// HACK to use modernc/sqlite instead of mattn's CGO version
 	migrate.MigrationDialects["sqlite"] = gorp.SqliteDialect{}
@@ -66,6 +70,40 @@ func init_(pf flag.PassedFlags) error {
 	}
 	fmt.Printf("Applied %d migrations!\n", n)
 
+	// -- github API
+
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+
+	client := github.NewClient(tc)
+
+	starred := []*github.StarredRepository{}
+	starredOpt := &github.ActivityListStarredOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+	for {
+		repos, resp, err := client.Activity.ListStarred(
+			ctx,
+			"", // current user
+			starredOpt,
+		)
+
+		if err != nil {
+			return fmt.Errorf("get-starred error: %w", err)
+		}
+
+		starred = append(starred, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		starredOpt.Page = resp.NextPage
+	}
+
+	fmt.Printf("len starred: %v\n", len(starred))
+
 	return nil
 }
 
@@ -74,7 +112,8 @@ func main() {
 		"--token": flag.New(
 			"Github PAT",
 			value.String,
-			flag.EnvVars("GITHUB_TOKEN"),
+			flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
+			flag.Required(),
 		),
 		"--db": flag.New(
 			"Path to db file",
