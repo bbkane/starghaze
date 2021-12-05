@@ -39,6 +39,8 @@ func printVersion(_ flag.PassedFlags) error {
 
 func queryGH(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
+	pageSize := pf["--page-size"].(int)
+	maxPages := pf["--max-pages"].(int)
 
 	ctx := context.Background()
 	src := oauth2.StaticTokenSource(
@@ -48,41 +50,44 @@ func queryGH(pf flag.PassedFlags) error {
 
 	client := githubv4.NewClient(httpClient)
 
+	type starredRepository struct {
+		Description      githubv4.String
+		HomepageURL      githubv4.String
+		NameWithOwner    githubv4.String
+		PushedAt         githubv4.DateTime
+		RepositoryTopics struct {
+			Nodes []struct {
+				URL   githubv4.String
+				Topic struct {
+					Name githubv4.String
+				}
+			}
+		} `graphql:"repositoryTopics(first: 10)"`
+		Stargazers struct {
+			TotalCount githubv4.Int
+		}
+		UpdatedAt githubv4.DateTime
+		Url       githubv4.String
+	}
+
 	var query struct {
 		Viewer struct {
 			StarredRepositories struct {
-				Nodes []struct {
-					Description      githubv4.String
-					HomepageURL      githubv4.String
-					NameWithOwner    githubv4.String
-					PushedAt         githubv4.DateTime
-					RepositoryTopics struct {
-						Nodes []struct {
-							URL   githubv4.String
-							Topic struct {
-								Name githubv4.String
-							}
-						}
-					} `graphql:"repositoryTopics(first: 10)"`
-					Stargazers struct {
-						TotalCount githubv4.Int
-					}
-					UpdatedAt githubv4.DateTime
-					Url       githubv4.String
-				}
+				Nodes    []starredRepository
 				PageInfo struct {
 					EndCursor   githubv4.String
 					HasNextPage githubv4.Boolean
 				}
-			} `graphql:"starredRepositories(first: 2, orderBy: {field:STARRED_AT, direction:DESC}, after: $starredRepositoriesCursor)"`
+			} `graphql:"starredRepositories(first: $starredRepositoryPageSize, orderBy: {field:STARRED_AT, direction:DESC}, after: $starredRepositoriesCursor)"`
 		}
 	}
 
 	variables := map[string]interface{}{
 		"starredRepositoriesCursor": (*githubv4.String)(nil),
+		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < maxPages; i++ {
 		err := client.Query(ctx, &query, variables)
 		if err != nil {
 			return fmt.Errorf("query err: %w", err)
@@ -111,13 +116,27 @@ func main() {
 	app := warg.New(
 		"starghaze",
 		section.New(
-			"Save GitHub Starred Repos to a SQLite3 DB",
+			"Save GitHub Starred Repos",
 			section.Command(
 				"query",
 				"Save the starred Repo information",
 				queryGH,
 				command.ExistingFlags(
 					sharedFlags,
+				),
+				command.Flag(
+					"--page-size",
+					"Number of starred repos in page",
+					value.Int,
+					flag.Default("2"),
+					flag.Required(),
+				),
+				command.Flag(
+					"--max-pages",
+					"Max number of pages to fetch",
+					value.Int,
+					flag.Default("2"),
+					flag.Required(),
 				),
 			),
 			section.Command(
