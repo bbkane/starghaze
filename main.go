@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-github/v41/github"
 	migrate "github.com/rubenv/sql-migrate"
+	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 
 	"github.com/bbkane/warg"
@@ -107,6 +108,34 @@ func init_(pf flag.PassedFlags) error {
 	return nil
 }
 
+func queryGH(pf flag.PassedFlags) error {
+	token := pf["--token"].(string)
+
+	ctx := context.Background()
+	src := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	httpClient := oauth2.NewClient(ctx, src)
+
+	client := githubv4.NewClient(httpClient)
+
+	var query struct {
+		Viewer struct {
+			Login     githubv4.String
+			CreatedAt githubv4.DateTime
+		}
+	}
+
+	err := client.Query(ctx, &query, nil)
+	if err != nil {
+		return fmt.Errorf("query err: %w", err)
+	}
+	fmt.Println("    Login:", query.Viewer.Login)
+	fmt.Println("CreatedAt:", query.Viewer.CreatedAt)
+	return nil
+
+}
+
 func main() {
 	sharedFlags := flag.FlagMap{
 		"--token": flag.New(
@@ -130,6 +159,14 @@ func main() {
 				"init",
 				"Download stargazer links to db",
 				init_,
+				command.ExistingFlags(
+					sharedFlags,
+				),
+			),
+			section.Command(
+				"query",
+				"Download stargazer links to db",
+				queryGH,
 				command.ExistingFlags(
 					sharedFlags,
 				),
