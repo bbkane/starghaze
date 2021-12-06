@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
 
@@ -38,6 +39,48 @@ func printVersion(_ flag.PassedFlags) error {
 	return nil
 }
 
+type Printer interface {
+	Line(io.Writer, *starredRepository) error
+}
+
+type JSONPrinter struct{}
+
+func (JSONPrinter) Line(w io.Writer, sR *starredRepository) error {
+	buf, err := json.Marshal(sR)
+	if err != nil {
+		return fmt.Errorf("json marshall err: %w", err)
+	}
+	_, err = w.Write(buf)
+	if err != nil {
+		return fmt.Errorf("file write err: %w", err)
+	}
+	_, err = w.Write([]byte{'\n'})
+	if err != nil {
+		return fmt.Errorf("newline write err: %w", err)
+	}
+	return nil
+}
+
+type starredRepository struct {
+	Description      githubv4.String
+	HomepageURL      githubv4.String
+	NameWithOwner    githubv4.String
+	PushedAt         githubv4.DateTime
+	RepositoryTopics struct {
+		Nodes []struct {
+			URL   githubv4.String
+			Topic struct {
+				Name githubv4.String
+			}
+		}
+	} `graphql:"repositoryTopics(first: 10)"`
+	Stargazers struct {
+		TotalCount githubv4.Int
+	}
+	UpdatedAt githubv4.DateTime
+	Url       githubv4.String
+}
+
 func queryGH(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
@@ -52,25 +95,13 @@ func queryGH(pf flag.PassedFlags) error {
 
 	client := githubv4.NewClient(httpClient)
 
-	type starredRepository struct {
-		Description      githubv4.String
-		HomepageURL      githubv4.String
-		NameWithOwner    githubv4.String
-		PushedAt         githubv4.DateTime
-		RepositoryTopics struct {
-			Nodes []struct {
-				URL   githubv4.String
-				Topic struct {
-					Name githubv4.String
-				}
-			}
-		} `graphql:"repositoryTopics(first: 10)"`
-		Stargazers struct {
-			TotalCount githubv4.Int
-		}
-		UpdatedAt githubv4.DateTime
-		Url       githubv4.String
+	fp, err := os.Create(output)
+	if err != nil {
+		return fmt.Errorf("file open err: %w", err)
 	}
+	defer fp.Close()
+
+	var jp Printer = JSONPrinter{}
 
 	var query struct {
 		Viewer struct {
@@ -89,35 +120,20 @@ func queryGH(pf flag.PassedFlags) error {
 		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
 	}
 
-	var starredRepos []starredRepository
 	for i := 0; i < maxPages; i++ {
 		err := client.Query(ctx, &query, variables)
 		if err != nil {
 			return fmt.Errorf("query err: %w", err)
 		}
 
-		starredRepos = append(starredRepos, query.Viewer.StarredRepositories.Nodes...)
+		for i := range query.Viewer.StarredRepositories.Nodes {
+			jp.Line(fp, &query.Viewer.StarredRepositories.Nodes[i])
+		}
 
 		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
 			break
 		}
 		variables["starredRepositoriesCursor"] = githubv4.NewString(query.Viewer.StarredRepositories.PageInfo.EndCursor)
-	}
-
-	buf, err := json.MarshalIndent(starredRepos, "", "  ")
-	if err != nil {
-		return fmt.Errorf("json marshall err: %w", err)
-	}
-
-	fp, err := os.Create(output)
-	if err != nil {
-		return fmt.Errorf("file open err: %w", err)
-	}
-	defer fp.Close()
-
-	_, err = fp.Write(buf)
-	if err != nil {
-		return fmt.Errorf("file write err: %w", err)
 	}
 
 	return nil
