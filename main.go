@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"runtime/debug"
+	"strconv"
+	"strings"
 
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
@@ -40,45 +43,117 @@ func printVersion(_ flag.PassedFlags) error {
 }
 
 type Printer interface {
-	Line(io.Writer, *starredRepository) error
+	Header() error
+	Line(*starredRepository) error
+	Flush() error
 }
 
-type JSONPrinter struct{}
+type JSONPrinter struct {
+	w io.Writer
+}
 
-func (JSONPrinter) Line(w io.Writer, sR *starredRepository) error {
+func NewJSONPrinter(w io.Writer) *JSONPrinter {
+	return &JSONPrinter{
+		w: w,
+	}
+}
+
+func (JSONPrinter) Header() error {
+	return nil
+}
+
+func (p *JSONPrinter) Line(sR *starredRepository) error {
 	buf, err := json.Marshal(sR)
 	if err != nil {
 		return fmt.Errorf("json marshall err: %w", err)
 	}
-	_, err = w.Write(buf)
+	_, err = p.w.Write(buf)
 	if err != nil {
 		return fmt.Errorf("file write err: %w", err)
 	}
-	_, err = w.Write([]byte{'\n'})
+	_, err = p.w.Write([]byte{'\n'})
 	if err != nil {
 		return fmt.Errorf("newline write err: %w", err)
 	}
 	return nil
 }
 
+func (JSONPrinter) Flush() error {
+	return nil
+}
+
+type CSVPrinter struct {
+	writer *csv.Writer
+}
+
+func NewCSVPrinter(w io.Writer) *CSVPrinter {
+	return &CSVPrinter{
+		writer: csv.NewWriter(w),
+	}
+}
+
+func (p *CSVPrinter) Header() error {
+	err := p.writer.Write([]string{
+		"Description",
+		"HomepageURL",
+		"NameWithOwner",
+		"PushedAt",
+		"StarGazerCount",
+		"Topics",
+		"UpdatedAt",
+		"Url",
+	})
+	if err != nil {
+		return fmt.Errorf("CSV header err: %w", err)
+	}
+	return nil
+}
+
+func (p *CSVPrinter) Line(sr *starredRepository) error {
+	topics := []string{}
+	for i := range sr.RepositoryTopics.Nodes {
+		topics = append(topics, sr.RepositoryTopics.Nodes[i].Topic.Name)
+	}
+	starGazerCount := strconv.Itoa(sr.Stargazers.TotalCount)
+	err := p.writer.Write([]string{
+		sr.Description,
+		sr.HomepageURL,
+		sr.NameWithOwner,
+		sr.PushedAt,
+		starGazerCount,
+		strings.Join(topics, " "),
+		sr.UpdatedAt,
+		sr.Url,
+	})
+	if err != nil {
+		return fmt.Errorf("CSV write err: %w", err)
+	}
+	return nil
+}
+
+func (p *CSVPrinter) Flush() error {
+	p.writer.Flush()
+	return p.writer.Error()
+}
+
 type starredRepository struct {
-	Description      githubv4.String
-	HomepageURL      githubv4.String
-	NameWithOwner    githubv4.String
-	PushedAt         githubv4.DateTime
+	Description      string
+	HomepageURL      string
+	NameWithOwner    string
+	PushedAt         string
 	RepositoryTopics struct {
 		Nodes []struct {
-			URL   githubv4.String
+			URL   string
 			Topic struct {
-				Name githubv4.String
+				Name string
 			}
 		}
 	} `graphql:"repositoryTopics(first: 10)"`
 	Stargazers struct {
-		TotalCount githubv4.Int
+		TotalCount int
 	}
-	UpdatedAt githubv4.DateTime
-	Url       githubv4.String
+	UpdatedAt string
+	Url       string
 }
 
 func queryGH(pf flag.PassedFlags) error {
@@ -86,6 +161,7 @@ func queryGH(pf flag.PassedFlags) error {
 	pageSize := pf["--page-size"].(int)
 	maxPages := pf["--max-pages"].(int)
 	output := pf["--output"].(string)
+	format := pf["--format"].(string)
 
 	ctx := context.Background() // TODO: paramaterize
 	src := oauth2.StaticTokenSource(
@@ -101,7 +177,23 @@ func queryGH(pf flag.PassedFlags) error {
 	}
 	defer fp.Close()
 
-	var jp Printer = JSONPrinter{}
+	var p Printer
+
+	switch format {
+	case "csv":
+		p = NewCSVPrinter(fp)
+	case "json":
+		p = NewJSONPrinter(fp)
+	default:
+		return fmt.Errorf("unknown output format: %s", format)
+	}
+
+	err = p.Header()
+	if err != nil {
+		return err
+	}
+
+	defer p.Flush()
 
 	var query struct {
 		Viewer struct {
@@ -127,7 +219,7 @@ func queryGH(pf flag.PassedFlags) error {
 		}
 
 		for i := range query.Viewer.StarredRepositories.Nodes {
-			jp.Line(fp, &query.Viewer.StarredRepositories.Nodes[i])
+			p.Line(&query.Viewer.StarredRepositories.Nodes[i])
 		}
 
 		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
@@ -176,6 +268,13 @@ func main() {
 					"output file",
 					value.Path,
 					flag.Default("/dev/stdout"),
+					flag.Required(),
+				),
+				command.Flag(
+					"--format",
+					"Output format",
+					value.StringEnum("csv", "json"),
+					flag.Default("csv"),
 					flag.Required(),
 				),
 			),
