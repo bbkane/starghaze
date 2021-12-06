@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -156,7 +157,7 @@ type starredRepository struct {
 	Url       string
 }
 
-func queryGH(pf flag.PassedFlags) error {
+func save(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
 	maxPages := pf["--max-pages"].(int)
@@ -177,13 +178,16 @@ func queryGH(pf flag.PassedFlags) error {
 	}
 	defer fp.Close()
 
+	buf := bufio.NewWriter(fp)
+	defer buf.Flush()
+
 	var p Printer
 
 	switch format {
 	case "csv":
-		p = NewCSVPrinter(fp)
+		p = NewCSVPrinter(buf)
 	case "json":
-		p = NewJSONPrinter(fp)
+		p = NewJSONPrinter(buf)
 	default:
 		return fmt.Errorf("unknown output format: %s", format)
 	}
@@ -238,10 +242,9 @@ func main() {
 		section.New(
 			"Save GitHub Starred Repos",
 			section.Command(
-				"query",
+				"save",
 				"Save the starred Repo information",
-				queryGH,
-
+				save,
 				command.Flag(
 					"--token",
 					"Github PAT",
@@ -253,14 +256,14 @@ func main() {
 					"--page-size",
 					"Number of starred repos in page",
 					value.Int,
-					flag.Default("2"),
+					flag.Default("100"),
 					flag.Required(),
 				),
 				command.Flag(
 					"--max-pages",
 					"Max number of pages to fetch",
 					value.Int,
-					flag.Default("2"),
+					flag.Default("1"),
 					flag.Required(),
 				),
 				command.Flag(
