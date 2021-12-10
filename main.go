@@ -243,7 +243,9 @@ func info(pf flag.PassedFlags) error {
 func gSheetsUpload(pf flag.PassedFlags) error {
 	ctx := context.Background()
 
-	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/spreadsheets.readonly")
+	// creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/spreadsheets.readonly")
+	creds, err := google.FindDefaultCredentials(ctx, sheets.SpreadsheetsScope)
+
 	if err != nil {
 		return fmt.Errorf("can't find default credentials: %w", err)
 	}
@@ -255,23 +257,36 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 
 	// TODO: param
 	spreadsheetId := "15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"
-	// readRange := "Class Data!A2:E"
-	readRange := "Sheet1!A2:E"
-	resp, err := srv.Spreadsheets.Values.Get(spreadsheetId, readRange).Do()
+
+	requests := []*sheets.Request{
+		{
+			PasteData: &sheets.PasteDataRequest{
+				Coordinate: &sheets.GridCoordinate{
+					ColumnIndex: 0,
+					RowIndex:    0,
+					// https://developers.google.com/sheets/api/guides/concepts
+					SheetId: 0,
+				},
+				Data:      "hi",
+				Delimiter: ",",
+				Type:      "PASTE_NORMAL",
+			},
+		},
+	}
+
+	rb := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: requests,
+		// TODO: fill out
+	}
+
+	resp, err := srv.Spreadsheets.BatchUpdate(
+		spreadsheetId,
+		rb,
+	).Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("unable to retrieve data from sheet: %w", err)
+		return fmt.Errorf("batch error failure: %w", err)
 	}
-
-	if len(resp.Values) == 0 {
-		fmt.Println("No data found.")
-	} else {
-		fmt.Println("Name, Major:")
-		for _, row := range resp.Values {
-			// Print columns A and E, which correspond to indices 0 and 4.
-			fmt.Printf("%s, %s\n", row[0], row[4])
-		}
-	}
-
+	fmt.Printf("%#v\n", resp)
 	return nil
 }
 
