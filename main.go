@@ -20,6 +20,10 @@ import (
 	"github.com/bbkane/warg/flag"
 	"github.com/bbkane/warg/section"
 	"github.com/bbkane/warg/value"
+
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/option"
+	"google.golang.org/api/sheets/v4"
 )
 
 // This will be overriden by goreleaser
@@ -237,6 +241,37 @@ func info(pf flag.PassedFlags) error {
 }
 
 func gSheetsUpload(pf flag.PassedFlags) error {
+	ctx := context.Background()
+
+	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/spreadsheets.readonly")
+	if err != nil {
+		return fmt.Errorf("can't find default credentials: %w", err)
+	}
+
+	srv, err := sheets.NewService(ctx, option.WithCredentials(creds))
+	if err != nil {
+		return fmt.Errorf("unable to retrieve Sheets client: %w", err)
+	}
+
+	// TODO: param
+	spreadsheetId := "15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"
+	// readRange := "Class Data!A2:E"
+	readRange := "Sheet1!A2:E"
+	resp, err := srv.Spreadsheets.Values.Get(spreadsheetId, readRange).Do()
+	if err != nil {
+		return fmt.Errorf("unable to retrieve data from sheet: %w", err)
+	}
+
+	if len(resp.Values) == 0 {
+		fmt.Println("No data found.")
+	} else {
+		fmt.Println("Name, Major:")
+		for _, row := range resp.Values {
+			// Print columns A and E, which correspond to indices 0 and 4.
+			fmt.Printf("%s, %s\n", row[0], row[4])
+		}
+	}
+
 	return nil
 }
 
@@ -293,7 +328,7 @@ func main() {
 			),
 			section.Section(
 				"gsheets",
-				"Stars + Google Sheets",
+				"Stars -> Google Sheets",
 				section.Command(
 					"upload",
 					"Upload CSV to Google Sheets",
