@@ -36,6 +36,7 @@ GraphQL notes at [./learning_graphql.md](./learning_graphql.md)
 }
 ```
 
-- markdown table output
+- Google Sheets integration
 - customizable dates
 - turn context into a duration flag
+- `readmes` command

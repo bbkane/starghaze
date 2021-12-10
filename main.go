@@ -157,7 +157,7 @@ type starredRepository struct {
 	Url       string
 }
 
-func save(pf flag.PassedFlags) error {
+func info(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
 	maxPages := pf["--max-pages"].(int)
@@ -236,15 +236,19 @@ func save(pf flag.PassedFlags) error {
 
 }
 
+func gSheetsUpload(pf flag.PassedFlags) error {
+	return nil
+}
+
 func main() {
 	app := warg.New(
 		"starghaze",
 		section.New(
 			"Save GitHub Starred Repos",
 			section.Command(
-				"save",
-				"Save the starred Repo information",
-				save,
+				"info",
+				"Save starred repo information",
+				info,
 				command.Flag(
 					"--token",
 					"Github PAT",
@@ -270,6 +274,7 @@ func main() {
 					"--output",
 					"output file",
 					value.Path,
+					// TODO: this won't workk on Windows
 					flag.Default("/dev/stdout"),
 					flag.Required(),
 				),
@@ -285,6 +290,15 @@ func main() {
 				"version",
 				"Print version",
 				printVersion,
+			),
+			section.Section(
+				"gsheets",
+				"Stars + Google Sheets",
+				section.Command(
+					"upload",
+					"Upload CSV to Google Sheets",
+					gSheetsUpload,
+				),
 			),
 		),
 	)
