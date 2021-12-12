@@ -9,9 +9,12 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
@@ -168,8 +171,10 @@ func info(pf flag.PassedFlags) error {
 	maxPages := pf["--max-pages"].(int)
 	output := pf["--output"].(string)
 	format := pf["--format"].(string)
+	timeout := pf["--timeout"].(time.Duration)
 
-	ctx := context.Background() // TODO: paramaterize
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
@@ -241,13 +246,42 @@ func info(pf flag.PassedFlags) error {
 
 }
 
-func gSheetsUpload(pf flag.PassedFlags) error {
-	// Thank God for https://stackoverflow.com/q/42362702/2958070
-	ctx := context.Background()
+func gSheetsOpen(pf flag.PassedFlags) error {
+	spreadsheetId := pf["--spreadsheet-id"].(string)
+	sheetID := pf["--sheet-id"].(int)
 
+	link := fmt.Sprintf(
+		"https://docs.google.com/spreadsheets/d/%s/edit#gid=%d",
+		spreadsheetId,
+		sheetID,
+	)
+	fmt.Printf("Opening: %s\n", link)
+
+	// https://stackoverflow.com/a/39324149/2958070
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+	}
+	args = append(args, link)
+	exec.Command(cmd, args...).Start()
+	return nil
+}
+
+func gSheetsUpload(pf flag.PassedFlags) error {
 	csvPath := pf["--csv-path"].(string)
 	spreadsheetId := pf["--spreadsheet-id"].(string)
 	sheetID := pf["--sheet-id"].(int)
+	timeout := pf["--timeout"].(time.Duration)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	csvBytes, err := ioutil.ReadFile(csvPath)
 	if err != nil {
@@ -266,6 +300,17 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 	}
 
 	requests := []*sheets.Request{
+		// Erase current cells
+		// https://stackoverflow.com/q/37928947/2958070
+		{
+			UpdateCells: &sheets.UpdateCellsRequest{
+				Fields: "*",
+				Range: &sheets.GridRange{
+					SheetId: 0,
+				},
+			},
+		},
+		// https://stackoverflow.com/q/42362702/2958070
 		{
 			PasteData: &sheets.PasteDataRequest{
 				Coordinate: &sheets.GridCoordinate{
@@ -293,7 +338,7 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 		return fmt.Errorf("batch error failure: %w", err)
 	}
 
-	fmt.Printf("%#v\n", resp)
+	fmt.Printf("Status Code: %d\n", resp.HTTPStatusCode)
 	return nil
 }
 
@@ -307,17 +352,10 @@ func main() {
 				"Save starred repo information",
 				info,
 				command.Flag(
-					"--token",
-					"Github PAT",
-					value.String,
-					flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--page-size",
-					"Number of starred repos in page",
-					value.Int,
-					flag.Default("100"),
+					"--format",
+					"Output format",
+					value.StringEnum("csv", "json"),
+					flag.Default("csv"),
 					flag.Required(),
 				),
 				command.Flag(
@@ -336,10 +374,24 @@ func main() {
 					flag.Required(),
 				),
 				command.Flag(
-					"--format",
-					"Output format",
-					value.StringEnum("csv", "json"),
-					flag.Default("csv"),
+					"--page-size",
+					"Number of starred repos in page",
+					value.Int,
+					flag.Default("100"),
+					flag.Required(),
+				),
+				command.Flag(
+					"--timeout",
+					"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
+					value.Duration,
+					flag.Default("10m"),
+					flag.Required(),
+				),
+				command.Flag(
+					"--token",
+					"Github PAT",
+					value.String,
+					flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
 					flag.Required(),
 				),
 			),
@@ -348,9 +400,15 @@ func main() {
 				"Print version",
 				printVersion,
 			),
+
 			section.Section(
 				"gsheets",
-				"Stars -> Google Sheets",
+				"Google Sheets commands",
+				section.Command(
+					"open",
+					"Open spreadsheet in browser",
+					gSheetsOpen,
+				),
 				section.Command(
 					"upload",
 					"Upload CSV to Google Sheets. This will overwrite whatever is in the spreadsheet",
@@ -362,19 +420,26 @@ func main() {
 						flag.Required(),
 					),
 					command.Flag(
-						"--spreadsheet-id",
-						"ID for the whole spreadsheet. Viewable from URL",
-						value.String,
-						flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
+						"--timeout",
+						"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
+						value.Duration,
+						flag.Default("10m"),
 						flag.Required(),
 					),
-					command.Flag(
-						"--sheet-id",
-						"ID For the particulare sheet. Viewable from `gid` URL param",
-						value.Int,
-						flag.Default("0"),
-						flag.Required(),
-					),
+				),
+				section.Flag(
+					"--sheet-id",
+					"ID For the particulare sheet. Viewable from `gid` URL param",
+					value.Int,
+					flag.Default("0"),
+					flag.Required(),
+				),
+				section.Flag(
+					"--spreadsheet-id",
+					"ID for the whole spreadsheet. Viewable from URL",
+					value.String,
+					flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
+					flag.Required(),
 				),
 			),
 		),

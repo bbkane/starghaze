@@ -37,11 +37,7 @@ GraphQL notes at [./learning_graphql.md](./learning_graphql.md)
 ```
 
 - Google Sheets integration
-  - Should probably clear sheet before uploading new data in case the starred list shrinks
   - add open command to open url
-  - add url param as an alternative to sheet-id and spreadsheet-id
-  - actually use upload flags
-- turn context into a duration flag
 - `readmes` command
 
 # Google Sheets Auth Setup
@@ -116,4 +112,3 @@ $ cloudshell download starghaze-sa-keys.json
 $ GOOGLE_APPLICATION_CREDENTIALS=starghaze-sa-keys.json go run . gsheets upload
 No data found.
 ```
-
