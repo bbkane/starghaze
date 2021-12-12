@@ -122,3 +122,42 @@ It looks like github's pageInfo does include endCursor to get to the next page -
 ```
 
 And that works
+
+The one I want is:
+
+```graphql
+{
+  viewer {
+    starredRepositories(first: 2, orderBy: {field: STARRED_AT, direction: ASC}) {
+      edges {
+        starredAt
+        node {
+          name
+          description
+          homepageUrl
+          nameWithOwner
+          pushedAt
+          repositoryTopics(first: 10) {
+            nodes {
+              url
+              topic {
+                name
+              }
+            }
+          }
+          stargazerCount
+          updatedAt
+          url
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+
+```
+
+breaking it up into fragments...

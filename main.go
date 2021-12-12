@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -53,7 +54,7 @@ func printVersion(_ flag.PassedFlags) error {
 
 type Printer interface {
 	Header() error
-	Line(*starredRepository) error
+	Line(*starredRepositoryEdge) error
 	Flush() error
 }
 
@@ -71,7 +72,7 @@ func (JSONPrinter) Header() error {
 	return nil
 }
 
-func (p *JSONPrinter) Line(sR *starredRepository) error {
+func (p *JSONPrinter) Line(sR *starredRepositoryEdge) error {
 	buf, err := json.Marshal(sR)
 	if err != nil {
 		return fmt.Errorf("json marshall err: %w", err)
@@ -107,7 +108,8 @@ func (p *CSVPrinter) Header() error {
 		"HomepageURL",
 		"NameWithOwner",
 		"PushedAt",
-		"StarGazerCount",
+		"StargazerCount",
+		"StarredAt",
 		"Topics",
 		"UpdatedAt",
 		"Url",
@@ -118,21 +120,23 @@ func (p *CSVPrinter) Header() error {
 	return nil
 }
 
-func (p *CSVPrinter) Line(sr *starredRepository) error {
+func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 	topics := []string{}
-	for i := range sr.RepositoryTopics.Nodes {
-		topics = append(topics, sr.RepositoryTopics.Nodes[i].Topic.Name)
+
+	for i := range sr.Node.RepositoryTopics.Nodes {
+		topics = append(topics, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
 	}
-	starGazerCount := strconv.Itoa(sr.Stargazers.TotalCount)
+	stargazerCount := strconv.Itoa(sr.Node.StargazerCount)
 	err := p.writer.Write([]string{
-		sr.Description,
-		sr.HomepageURL,
-		sr.NameWithOwner,
-		sr.PushedAt,
-		starGazerCount,
+		sr.Node.Description,
+		sr.Node.HomepageURL,
+		sr.Node.NameWithOwner,
+		sr.Node.PushedAt,
+		stargazerCount,
+		sr.StarredAt,
 		strings.Join(topics, " "),
-		sr.UpdatedAt,
-		sr.Url,
+		sr.Node.UpdatedAt,
+		sr.Node.Url,
 	})
 	if err != nil {
 		return fmt.Errorf("CSV write err: %w", err)
@@ -145,58 +149,53 @@ func (p *CSVPrinter) Flush() error {
 	return p.writer.Error()
 }
 
-type starredRepository struct {
-	Description      string
-	HomepageURL      string
-	NameWithOwner    string
-	PushedAt         string
-	RepositoryTopics struct {
-		Nodes []struct {
-			URL   string
-			Topic struct {
-				Name string
-			}
-		}
-	} `graphql:"repositoryTopics(first: 10)"`
-	Stargazers struct {
-		TotalCount int
-	}
-	UpdatedAt string
-	Url       string
+func readmes(pf flag.PassedFlags) error {
+	return errors.New("not implemented yet :)")
 }
 
-func readmes(pf flag.PassedFlags) error {
-	return nil
+type starredRepositoryEdge struct {
+	StarredAt string
+	Node      struct {
+		Description      string
+		HomepageURL      string
+		NameWithOwner    string
+		PushedAt         string
+		RepositoryTopics struct {
+			Nodes []struct {
+				URL   string
+				Topic struct {
+					Name string
+				}
+			}
+		} `graphql:"repositoryTopics(first: 10)"`
+		StargazerCount int
+		UpdatedAt      string
+		Url            string
+	}
 }
 
 func stats(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
 	maxPages := pf["--max-pages"].(int)
-	output := pf["--output"].(string)
+	output, outputExists := pf["--output"].(string)
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	src := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-	httpClient := oauth2.NewClient(ctx, src)
-
-	client := githubv4.NewClient(httpClient)
-
-	fp, err := os.Create(output)
-	if err != nil {
-		return fmt.Errorf("file open err: %w", err)
+	fp := os.Stdout
+	if outputExists {
+		newFP, err := os.Create(output)
+		if err != nil {
+			return fmt.Errorf("file open err: %w", err)
+		}
+		fp = newFP
+		defer newFP.Close()
 	}
-	defer fp.Close()
 
 	buf := bufio.NewWriter(fp)
 	defer buf.Flush()
 
 	var p Printer
-
 	switch format {
 	case "csv":
 		p = NewCSVPrinter(buf)
@@ -206,22 +205,30 @@ func stats(pf flag.PassedFlags) error {
 		return fmt.Errorf("unknown output format: %s", format)
 	}
 
-	err = p.Header()
+	err := p.Header()
 	if err != nil {
 		return err
 	}
 
 	defer p.Flush()
 
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	src := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	httpClient := oauth2.NewClient(ctx, src)
+	client := githubv4.NewClient(httpClient)
+
 	var query struct {
 		Viewer struct {
 			StarredRepositories struct {
-				Nodes    []starredRepository
+				Edges    []starredRepositoryEdge
 				PageInfo struct {
 					EndCursor   githubv4.String
 					HasNextPage githubv4.Boolean
 				}
-			} `graphql:"starredRepositories(first: $starredRepositoryPageSize, orderBy: {field:STARRED_AT, direction:DESC}, after: $starredRepositoriesCursor)"`
+			} `graphql:"starredRepositories(first: $starredRepositoryPageSize, orderBy: {field:STARRED_AT, direction:ASC}, after: $starredRepositoriesCursor)"`
 		}
 	}
 
@@ -236,8 +243,8 @@ func stats(pf flag.PassedFlags) error {
 			return fmt.Errorf("query err: %w", err)
 		}
 
-		for i := range query.Viewer.StarredRepositories.Nodes {
-			p.Line(&query.Viewer.StarredRepositories.Nodes[i])
+		for i := range query.Viewer.StarredRepositories.Edges {
+			p.Line(&query.Viewer.StarredRepositories.Edges[i])
 		}
 
 		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
@@ -245,9 +252,7 @@ func stats(pf flag.PassedFlags) error {
 		}
 		variables["starredRepositoriesCursor"] = githubv4.NewString(query.Viewer.StarredRepositories.PageInfo.EndCursor)
 	}
-
 	return nil
-
 }
 
 func gSheetsOpen(pf flag.PassedFlags) error {
@@ -376,11 +381,8 @@ func main() {
 		),
 		section.Flag(
 			"--output",
-			"output file",
+			"output file. Prints to stdout if not passed",
 			value.Path,
-			// TODO: this won't workk on Windows
-			flag.Default("/dev/stdout"),
-			flag.Required(),
 		),
 		section.Flag(
 			"--page-size",
