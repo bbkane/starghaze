@@ -37,7 +37,10 @@ GraphQL notes at [./learning_graphql.md](./learning_graphql.md)
 ```
 
 - Google Sheets integration
-- customizable dates
+  - Should probably clear sheet before uploading new data in case the starred list shrinks
+  - add open command to open url
+  - add url param as an alternative to sheet-id and spreadsheet-id
+  - actually use upload flags
 - turn context into a duration flag
 - `readmes` command
 
@@ -54,7 +57,7 @@ Use “gcloud config set project [PROJECT_ID]” to change to a different projec
 ```
 $ gcloud projects create starghaze
 Create in progress for [https://cloudresourcemanager.googleapis.com/v1/projects/starghaze].
-Waiting for [operations/cp.7358087792659517101] to finish...done.    
+Waiting for [operations/cp.7358087792659517101] to finish...done.
 Enabling service [cloudapis.googleapis.com] on project [starghaze]...
 Operation "operations/acf.p2-824192962629-dbb00832-15b2-480b-91dc-cf3ceb5220e3" finished successfully.
 ```

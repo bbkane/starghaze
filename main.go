@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -241,11 +242,20 @@ func info(pf flag.PassedFlags) error {
 }
 
 func gSheetsUpload(pf flag.PassedFlags) error {
+	// Thank God for https://stackoverflow.com/q/42362702/2958070
 	ctx := context.Background()
 
-	// creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/spreadsheets.readonly")
-	creds, err := google.FindDefaultCredentials(ctx, sheets.SpreadsheetsScope)
+	csvPath := pf["--csv-path"].(string)
+	spreadsheetId := pf["--spreadsheet-id"].(string)
+	sheetID := pf["--sheet-id"].(int)
 
+	csvBytes, err := ioutil.ReadFile(csvPath)
+	if err != nil {
+		return fmt.Errorf("csv read error: %s: %w", csvPath, err)
+	}
+	csvStr := string(csvBytes)
+
+	creds, err := google.FindDefaultCredentials(ctx, sheets.SpreadsheetsScope)
 	if err != nil {
 		return fmt.Errorf("can't find default credentials: %w", err)
 	}
@@ -255,9 +265,6 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 		return fmt.Errorf("unable to retrieve Sheets client: %w", err)
 	}
 
-	// TODO: param
-	spreadsheetId := "15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"
-
 	requests := []*sheets.Request{
 		{
 			PasteData: &sheets.PasteDataRequest{
@@ -265,9 +272,9 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 					ColumnIndex: 0,
 					RowIndex:    0,
 					// https://developers.google.com/sheets/api/guides/concepts
-					SheetId: 0,
+					SheetId: int64(sheetID), // TODO: prefer reading an int64 flag, not casting :)
 				},
-				Data:      "hi",
+				Data:      csvStr,
 				Delimiter: ",",
 				Type:      "PASTE_NORMAL",
 			},
@@ -276,7 +283,6 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 
 	rb := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: requests,
-		// TODO: fill out
 	}
 
 	resp, err := srv.Spreadsheets.BatchUpdate(
@@ -286,6 +292,7 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 	if err != nil {
 		return fmt.Errorf("batch error failure: %w", err)
 	}
+
 	fmt.Printf("%#v\n", resp)
 	return nil
 }
@@ -346,8 +353,28 @@ func main() {
 				"Stars -> Google Sheets",
 				section.Command(
 					"upload",
-					"Upload CSV to Google Sheets",
+					"Upload CSV to Google Sheets. This will overwrite whatever is in the spreadsheet",
 					gSheetsUpload,
+					command.Flag(
+						"--csv-path",
+						"CSV file to upload",
+						value.Path,
+						flag.Required(),
+					),
+					command.Flag(
+						"--spreadsheet-id",
+						"ID for the whole spreadsheet. Viewable from URL",
+						value.String,
+						flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
+						flag.Required(),
+					),
+					command.Flag(
+						"--sheet-id",
+						"ID For the particulare sheet. Viewable from `gid` URL param",
+						value.Int,
+						flag.Default("0"),
+						flag.Required(),
+					),
 				),
 			),
 		),
