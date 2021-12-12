@@ -165,7 +165,11 @@ type starredRepository struct {
 	Url       string
 }
 
-func info(pf flag.PassedFlags) error {
+func readmes(pf flag.PassedFlags) error {
+	return nil
+}
+
+func stats(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
 	maxPages := pf["--max-pages"].(int)
@@ -343,104 +347,115 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 }
 
 func main() {
+
+	githubSection := section.New(
+		"GitHub commands",
+		section.Command(
+			"readmes",
+			"Save starred repo READMEs",
+			readmes,
+		),
+		section.Command(
+			"stats",
+			"Save starred repo information",
+			stats,
+			command.Flag(
+				"--format",
+				"Output format",
+				value.StringEnum("csv", "json"),
+				flag.Default("csv"),
+				flag.Required(),
+			),
+		),
+		section.Flag(
+			"--max-pages",
+			"Max number of pages to fetch",
+			value.Int,
+			flag.Default("1"),
+			flag.Required(),
+		),
+		section.Flag(
+			"--output",
+			"output file",
+			value.Path,
+			// TODO: this won't workk on Windows
+			flag.Default("/dev/stdout"),
+			flag.Required(),
+		),
+		section.Flag(
+			"--page-size",
+			"Number of starred repos in page",
+			value.Int,
+			flag.Default("100"),
+			flag.Required(),
+		),
+		section.Flag(
+			"--timeout",
+			"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
+			value.Duration,
+			flag.Default("10m"),
+			flag.Required(),
+		),
+		section.Flag(
+			"--token",
+			"Github PAT",
+			value.String,
+			flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
+			flag.Required(),
+		),
+	)
+
+	gsheetsSection := section.New(
+		"Google Sheets commands",
+		section.Command(
+			"open",
+			"Open spreadsheet in browser",
+			gSheetsOpen,
+		),
+		section.Command(
+			"upload",
+			"Upload CSV to Google Sheets. This will overwrite whatever is in the spreadsheet",
+			gSheetsUpload,
+			command.Flag(
+				"--csv-path",
+				"CSV file to upload",
+				value.Path,
+				flag.Required(),
+			),
+			command.Flag(
+				"--timeout",
+				"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
+				value.Duration,
+				flag.Default("10m"),
+				flag.Required(),
+			),
+		),
+		section.Flag(
+			"--sheet-id",
+			"ID For the particulare sheet. Viewable from `gid` URL param",
+			value.Int,
+			flag.Default("0"),
+			flag.Required(),
+		),
+		section.Flag(
+			"--spreadsheet-id",
+			"ID for the whole spreadsheet. Viewable from URL",
+			value.String,
+			flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
+			flag.Required(),
+		),
+	)
+
 	app := warg.New(
 		"starghaze",
 		section.New(
 			"Save GitHub Starred Repos",
-			section.Command(
-				"info",
-				"Save starred repo information",
-				info,
-				command.Flag(
-					"--format",
-					"Output format",
-					value.StringEnum("csv", "json"),
-					flag.Default("csv"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--max-pages",
-					"Max number of pages to fetch",
-					value.Int,
-					flag.Default("1"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--output",
-					"output file",
-					value.Path,
-					// TODO: this won't workk on Windows
-					flag.Default("/dev/stdout"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--page-size",
-					"Number of starred repos in page",
-					value.Int,
-					flag.Default("100"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--timeout",
-					"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
-					value.Duration,
-					flag.Default("10m"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--token",
-					"Github PAT",
-					value.String,
-					flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
-					flag.Required(),
-				),
-			),
+			section.ExistingSection("github", githubSection),
+			section.ExistingSection("gsheets", gsheetsSection),
 			section.Command(
 				"version",
 				"Print version",
 				printVersion,
-			),
-
-			section.Section(
-				"gsheets",
-				"Google Sheets commands",
-				section.Command(
-					"open",
-					"Open spreadsheet in browser",
-					gSheetsOpen,
-				),
-				section.Command(
-					"upload",
-					"Upload CSV to Google Sheets. This will overwrite whatever is in the spreadsheet",
-					gSheetsUpload,
-					command.Flag(
-						"--csv-path",
-						"CSV file to upload",
-						value.Path,
-						flag.Required(),
-					),
-					command.Flag(
-						"--timeout",
-						"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
-						value.Duration,
-						flag.Default("10m"),
-						flag.Required(),
-					),
-				),
-				section.Flag(
-					"--sheet-id",
-					"ID For the particulare sheet. Viewable from `gid` URL param",
-					value.Int,
-					flag.Default("0"),
-					flag.Required(),
-				),
-				section.Flag(
-					"--spreadsheet-id",
-					"ID for the whole spreadsheet. Viewable from URL",
-					value.String,
-					flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
-					flag.Required(),
-				),
 			),
 		),
 	)

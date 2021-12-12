@@ -36,8 +36,6 @@ GraphQL notes at [./learning_graphql.md](./learning_graphql.md)
 }
 ```
 
-- Google Sheets integration
-  - add open command to open url
 - `readmes` command
 
 # Google Sheets Auth Setup
