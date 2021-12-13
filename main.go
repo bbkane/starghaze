@@ -94,16 +94,19 @@ func (JSONPrinter) Flush() error {
 
 type CSVPrinter struct {
 	writer *csv.Writer
+	count  int
 }
 
 func NewCSVPrinter(w io.Writer) *CSVPrinter {
 	return &CSVPrinter{
 		writer: csv.NewWriter(w),
+		count:  1,
 	}
 }
 
 func (p *CSVPrinter) Header() error {
 	err := p.writer.Write([]string{
+		"Count",
 		"Description",
 		"HomepageURL",
 		"NameWithOwner",
@@ -126,18 +129,19 @@ func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 	for i := range sr.Node.RepositoryTopics.Nodes {
 		topics = append(topics, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
 	}
-	stargazerCount := strconv.Itoa(sr.Node.StargazerCount)
 	err := p.writer.Write([]string{
+		strconv.Itoa(p.count),
 		sr.Node.Description,
 		sr.Node.HomepageURL,
 		sr.Node.NameWithOwner,
 		sr.Node.PushedAt,
-		stargazerCount,
+		strconv.Itoa(sr.Node.StargazerCount),
 		sr.StarredAt,
 		strings.Join(topics, " "),
 		sr.Node.UpdatedAt,
 		sr.Node.Url,
 	})
+	p.count++
 	if err != nil {
 		return fmt.Errorf("CSV write err: %w", err)
 	}
