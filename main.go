@@ -59,12 +59,14 @@ type Printer interface {
 }
 
 type JSONPrinter struct {
-	w io.Writer
+	w              io.Writer
+	dateTimeFormat string
 }
 
-func NewJSONPrinter(w io.Writer) *JSONPrinter {
+func NewJSONPrinter(w io.Writer, dateTimeFormat string) *JSONPrinter {
 	return &JSONPrinter{
-		w: w,
+		w:              w,
+		dateTimeFormat: dateTimeFormat,
 	}
 }
 
@@ -73,6 +75,9 @@ func (JSONPrinter) Header() error {
 }
 
 func (p *JSONPrinter) Line(sR *starredRepositoryEdge) error {
+	sR.StarredAt.Format = p.dateTimeFormat
+	sR.Node.PushedAt.Format = p.dateTimeFormat
+	sR.Node.UpdatedAt.Format = p.dateTimeFormat
 	buf, err := json.Marshal(sR)
 	if err != nil {
 		return fmt.Errorf("json marshall err: %w", err)
@@ -93,14 +98,16 @@ func (JSONPrinter) Flush() error {
 }
 
 type CSVPrinter struct {
-	writer *csv.Writer
-	count  int
+	writer         *csv.Writer
+	count          int
+	dateTimeFormat string
 }
 
-func NewCSVPrinter(w io.Writer) *CSVPrinter {
+func NewCSVPrinter(w io.Writer, dateTimeFormat string) *CSVPrinter {
 	return &CSVPrinter{
-		writer: csv.NewWriter(w),
-		count:  1,
+		writer:         csv.NewWriter(w),
+		count:          1,
+		dateTimeFormat: dateTimeFormat,
 	}
 }
 
@@ -124,8 +131,12 @@ func (p *CSVPrinter) Header() error {
 }
 
 func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
-	topics := []string{}
 
+	sr.StarredAt.Format = p.dateTimeFormat
+	sr.Node.PushedAt.Format = p.dateTimeFormat
+	sr.Node.UpdatedAt.Format = p.dateTimeFormat
+
+	topics := []string{}
 	for i := range sr.Node.RepositoryTopics.Nodes {
 		topics = append(topics, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
 	}
@@ -134,11 +145,11 @@ func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 		sr.Node.Description,
 		sr.Node.HomepageURL,
 		sr.Node.NameWithOwner,
-		sr.Node.PushedAt,
+		sr.Node.PushedAt.String(),
 		strconv.Itoa(sr.Node.StargazerCount),
-		sr.StarredAt,
+		sr.StarredAt.String(),
 		strings.Join(topics, " "),
-		sr.Node.UpdatedAt,
+		sr.Node.UpdatedAt.String(),
 		sr.Node.Url,
 	})
 	p.count++
@@ -157,13 +168,36 @@ func readmes(pf flag.PassedFlags) error {
 	return errors.New("not implemented yet :)")
 }
 
+type formattedDate struct {
+	t time.Time
+	// Format cotnrols what is sent out. time.Times being unmarshalled should be
+	// in RFC3339 format (the default)
+	Format string
+}
+
+func (d formattedDate) MarshalJSON() ([]byte, error) {
+	// https://www.programming-books.io/essential/go/custom-json-marshaling-468765d144a34e87b913c7674e66c3a4
+	// NOTE: if you forget the enclosing quotes, MarshalJSON doesn't emit anything and doesn't error out
+	s := "\"" + d.t.Format(d.Format) + "\""
+	return []byte(s), nil
+}
+
+func (d *formattedDate) UnmarshalJSON(b []byte) error {
+	// the default unmarshall seems to be fine - from what I can tell the GitHub API is using it
+	return d.t.UnmarshalJSON(b)
+}
+
+func (d formattedDate) String() string {
+	return d.t.Format(d.Format)
+}
+
 type starredRepositoryEdge struct {
-	StarredAt string
+	StarredAt formattedDate
 	Node      struct {
 		Description      string
 		HomepageURL      string
 		NameWithOwner    string
-		PushedAt         string
+		PushedAt         formattedDate
 		RepositoryTopics struct {
 			Nodes []struct {
 				URL   string
@@ -173,7 +207,7 @@ type starredRepositoryEdge struct {
 			}
 		} `graphql:"repositoryTopics(first: 10)"`
 		StargazerCount int
-		UpdatedAt      string
+		UpdatedAt      formattedDate
 		Url            string
 	}
 }
@@ -185,6 +219,7 @@ func stats(pf flag.PassedFlags) error {
 	output, outputExists := pf["--output"].(string)
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
+	dateFormat := pf["--date-format"].(string)
 
 	fp := os.Stdout
 	if outputExists {
@@ -202,9 +237,9 @@ func stats(pf flag.PassedFlags) error {
 	var p Printer
 	switch format {
 	case "csv":
-		p = NewCSVPrinter(buf)
+		p = NewCSVPrinter(buf, dateFormat)
 	case "json":
-		p = NewJSONPrinter(buf)
+		p = NewJSONPrinter(buf, dateFormat)
 	default:
 		return fmt.Errorf("unknown output format: %s", format)
 	}
@@ -373,6 +408,13 @@ func main() {
 				"Output format",
 				value.StringEnum("csv", "json"),
 				flag.Default("csv"),
+				flag.Required(),
+			),
+			command.Flag(
+				"--date-format",
+				"Format for outputted dates. See https://pkg.go.dev/time#Time.Format for details",
+				value.String,
+				flag.Default("Jan 2, 2006"),
 				flag.Required(),
 			),
 		),
