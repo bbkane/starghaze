@@ -1,3 +1,0 @@
-starredRepositories
-StarredRepositories
-starredRepositories

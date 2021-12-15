@@ -10,6 +10,28 @@ Thanks to https://github.com/yks0000/starred-repo-toc for the inspiration!
 
 GraphQL and Google Sheets auth notes at [./dev_notes.md](./dev_notes.md)
 
+## Example
+
+Note: most of these options have sane defaults already set. Use `--help` to see what the default is.
+
+```bash
+GITHUB_TOKEN=my_token_value starghaze github stats \
+    --date-format '2006-02-01' \
+    --format csv \
+    --max-pages 3 \
+    --output stars.csv \
+    --page-size 100 \
+    --timeout 10m
+```
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/keys.json starghaze gsheets upload \
+    --csv-path stars.csv \
+    --sheet-id 0 \
+    --spreadsheet-id 15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0 \
+    --timeout 30s
+```
+
 ## Install
 
 - Homebrew: `brew install bbkane/tap/starghaze`
