@@ -59,14 +59,12 @@ type Printer interface {
 }
 
 type JSONPrinter struct {
-	w              io.Writer
-	dateTimeFormat string
+	w io.Writer
 }
 
-func NewJSONPrinter(w io.Writer, dateTimeFormat string) *JSONPrinter {
+func NewJSONPrinter(w io.Writer) *JSONPrinter {
 	return &JSONPrinter{
-		w:              w,
-		dateTimeFormat: dateTimeFormat,
+		w: w,
 	}
 }
 
@@ -75,9 +73,7 @@ func (JSONPrinter) Header() error {
 }
 
 func (p *JSONPrinter) Line(sR *starredRepositoryEdge) error {
-	sR.StarredAt.Format = p.dateTimeFormat
-	sR.Node.PushedAt.Format = p.dateTimeFormat
-	sR.Node.UpdatedAt.Format = p.dateTimeFormat
+
 	buf, err := json.Marshal(sR)
 	if err != nil {
 		return fmt.Errorf("json marshall err: %w", err)
@@ -98,16 +94,14 @@ func (JSONPrinter) Flush() error {
 }
 
 type CSVPrinter struct {
-	writer         *csv.Writer
-	count          int
-	dateTimeFormat string
+	writer *csv.Writer
+	count  int
 }
 
-func NewCSVPrinter(w io.Writer, dateTimeFormat string) *CSVPrinter {
+func NewCSVPrinter(w io.Writer) *CSVPrinter {
 	return &CSVPrinter{
-		writer:         csv.NewWriter(w),
-		count:          1,
-		dateTimeFormat: dateTimeFormat,
+		writer: csv.NewWriter(w),
+		count:  1,
 	}
 }
 
@@ -131,10 +125,6 @@ func (p *CSVPrinter) Header() error {
 }
 
 func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
-
-	sr.StarredAt.Format = p.dateTimeFormat
-	sr.Node.PushedAt.Format = p.dateTimeFormat
-	sr.Node.UpdatedAt.Format = p.dateTimeFormat
 
 	topics := []string{}
 	for i := range sr.Node.RepositoryTopics.Nodes {
@@ -237,9 +227,9 @@ func stats(pf flag.PassedFlags) error {
 	var p Printer
 	switch format {
 	case "csv":
-		p = NewCSVPrinter(buf, dateFormat)
+		p = NewCSVPrinter(buf)
 	case "json":
-		p = NewJSONPrinter(buf, dateFormat)
+		p = NewJSONPrinter(buf)
 	default:
 		return fmt.Errorf("unknown output format: %s", format)
 	}
@@ -283,7 +273,11 @@ func stats(pf flag.PassedFlags) error {
 		}
 
 		for i := range query.Viewer.StarredRepositories.Edges {
-			p.Line(&query.Viewer.StarredRepositories.Edges[i])
+			edge := query.Viewer.StarredRepositories.Edges[i]
+			edge.StarredAt.Format = dateFormat
+			edge.Node.PushedAt.Format = dateFormat
+			edge.Node.UpdatedAt.Format = dateFormat
+			p.Line(&edge)
 		}
 
 		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
@@ -394,11 +388,11 @@ func main() {
 
 	githubSection := section.New(
 		"GitHub commands",
-		section.Command(
-			"readmes",
-			"Save starred repo READMEs",
-			readmes,
-		),
+		// section.Command(
+		// 	"readmes",
+		// 	"Save starred repo READMEs",
+		// 	readmes,
+		// ),
 		section.Command(
 			"stats",
 			"Save starred repo information",
