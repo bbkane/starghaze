@@ -477,6 +477,7 @@ func main() {
 			"ID For the particulare sheet. Viewable from `gid` URL param",
 			value.Int,
 			flag.Default("0"),
+			flag.EnvVars("STARGHAZE_SHEET_ID"),
 			flag.Required(),
 		),
 		section.Flag(
@@ -484,6 +485,7 @@ func main() {
 			"ID for the whole spreadsheet. Viewable from URL",
 			value.String,
 			flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
+			flag.EnvVars("STARGHAZE_SPREADSHEET_ID"),
 			flag.Required(),
 		),
 	)
