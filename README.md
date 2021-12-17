@@ -41,6 +41,5 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/keys.json starghaze gsheets upload \
 
 ## TODO
 
-- change `--date-format` to use strftime conventions.
 - `readmes` command to download READMEs for starred repos,
 - zinc command to push to [zinc](https://github.com/prabhatsharma/zinc) and see if I like zinc

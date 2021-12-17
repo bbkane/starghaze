@@ -29,6 +29,8 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
+
+	"github.com/lestrrat-go/strftime"
 )
 
 // This will be overriden by goreleaser
@@ -162,13 +164,14 @@ type formattedDate struct {
 	t time.Time
 	// Format cotnrols what is sent out. time.Times being unmarshalled should be
 	// in RFC3339 format (the default)
-	Format string
+	Format *strftime.Strftime
 }
 
 func (d formattedDate) MarshalJSON() ([]byte, error) {
 	// https://www.programming-books.io/essential/go/custom-json-marshaling-468765d144a34e87b913c7674e66c3a4
 	// NOTE: if you forget the enclosing quotes, MarshalJSON doesn't emit anything and doesn't error out
-	s := "\"" + d.t.Format(d.Format) + "\""
+	// s := "\"" + d.t.Format(d.Format) + "\""
+	s := `"` + d.Format.FormatString(d.t) + `"`
 	return []byte(s), nil
 }
 
@@ -178,7 +181,8 @@ func (d *formattedDate) UnmarshalJSON(b []byte) error {
 }
 
 func (d formattedDate) String() string {
-	return d.t.Format(d.Format)
+	// return d.t.Format(d.Format)
+	return d.Format.FormatString(d.t)
 }
 
 type starredRepositoryEdge struct {
@@ -209,7 +213,12 @@ func stats(pf flag.PassedFlags) error {
 	output, outputExists := pf["--output"].(string)
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
-	dateFormat := pf["--date-format"].(string)
+	dateFormatStr := pf["--date-format"].(string)
+
+	dateFormat, err := strftime.New(dateFormatStr)
+	if err != nil {
+		return fmt.Errorf("--date-format error: %w", err)
+	}
 
 	fp := os.Stdout
 	if outputExists {
@@ -234,12 +243,12 @@ func stats(pf flag.PassedFlags) error {
 		return fmt.Errorf("unknown output format: %s", format)
 	}
 
-	err := p.Header()
+	defer p.Flush()
+
+	err = p.Header()
 	if err != nil {
 		return err
 	}
-
-	defer p.Flush()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -406,9 +415,9 @@ func main() {
 			),
 			command.Flag(
 				"--date-format",
-				"Format for outputted dates. See https://pkg.go.dev/time#Time.Format for details",
+				"Format for outputted dates. See https://github.com/lestrrat-go/strftime#supported-conversion-specifications for details",
 				value.String,
-				flag.Default("Jan 2, 2006"),
+				flag.Default("%b %d, %Y"),
 				flag.Required(),
 			),
 		),

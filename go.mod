@@ -16,8 +16,10 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
+	github.com/lestrrat-go/strftime v1.0.5 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/pkg/errors v0.8.1 // indirect
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420 // indirect
