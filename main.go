@@ -315,7 +315,7 @@ type starredRepositoryEdge struct {
 					Name string
 				}
 			}
-		} `graphql:"languages(first: 10)"`
+		} `graphql:"languages(first: $maxLanguages)"`
 		NameWithOwner string
 		Object        struct {
 			Blob struct {
@@ -330,7 +330,7 @@ type starredRepositoryEdge struct {
 					Name string
 				}
 			}
-		} `graphql:"repositoryTopics(first: 10)"`
+		} `graphql:"repositoryTopics(first: $maxRepositoryTopics)"`
 		StargazerCount int
 		UpdatedAt      formattedDate
 		Url            string
@@ -345,6 +345,9 @@ func stats(pf flag.PassedFlags) error {
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
 	includeReadmes := pf["--include-readmes"].(bool)
+	zincIndexName := pf["--zinc-index-name"].(string)
+	maxLanguages := pf["--max-languages"].(int)
+	maxRepoTopics := pf["--max-repo-topics"].(int)
 
 	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
 
@@ -357,8 +360,6 @@ func stats(pf flag.PassedFlags) error {
 			return fmt.Errorf("--date-format error: %w", err)
 		}
 	}
-
-	zincIndexName := pf["--zinc-index-name"].(string)
 
 	fp := os.Stdout
 	if outputExists {
@@ -416,6 +417,8 @@ func stats(pf flag.PassedFlags) error {
 		"starredRepositoriesCursor": (*githubv4.String)(nil),
 		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
 		"includeREADME":             githubv4.Boolean(includeReadmes),
+		"maxLanguages":              githubv4.Int(maxLanguages),
+		"maxRepositoryTopics":       githubv4.Int(maxRepoTopics),
 	}
 
 	for i := 0; i < maxPages; i++ {
@@ -572,6 +575,18 @@ func main() {
 				"Search for README.md.",
 				value.Bool,
 				flag.Default("false"),
+			),
+			command.Flag(
+				"--max-languages",
+				"Max number of languages to query on a repo",
+				value.Int,
+				flag.Default("20"),
+			),
+			command.Flag(
+				"--max-repo-topics",
+				"Max number of topics to query on a repo",
+				value.Int,
+				flag.Default("20"),
 			),
 		),
 		section.Flag(
