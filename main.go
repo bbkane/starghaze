@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -132,16 +131,30 @@ func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 	for i := range sr.Node.RepositoryTopics.Nodes {
 		topics = append(topics, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
 	}
-	err := p.writer.Write([]string{
+	pushedAt, err := sr.Node.PushedAt.FormatString()
+	if err != nil {
+		return err
+	}
+	starredAt, err := sr.StarredAt.FormatString()
+	if err != nil {
+		return nil
+	}
+
+	updatedAt, err := sr.Node.UpdatedAt.FormatString()
+	if err != nil {
+		return nil
+	}
+
+	err = p.writer.Write([]string{
 		strconv.Itoa(p.count),
 		sr.Node.Description,
 		sr.Node.HomepageURL,
 		sr.Node.NameWithOwner,
-		sr.Node.PushedAt.String(),
+		pushedAt,
 		strconv.Itoa(sr.Node.StargazerCount),
-		sr.StarredAt.String(),
+		starredAt,
 		strings.Join(topics, " "),
-		sr.Node.UpdatedAt.String(),
+		updatedAt,
 		sr.Node.Url,
 	})
 	p.count++
@@ -156,33 +169,38 @@ func (p *CSVPrinter) Flush() error {
 	return p.writer.Error()
 }
 
-func readmes(pf flag.PassedFlags) error {
-	return errors.New("not implemented yet :)")
-}
-
+// formatted
 type formattedDate struct {
-	t time.Time
-	// Format cotnrols what is sent out. time.Times being unmarshalled should be
-	// in RFC3339 format (the default)
+	datetime string
+	// Format can be nil to do no processing on the datetime.
 	Format *strftime.Strftime
 }
 
 func (d formattedDate) MarshalJSON() ([]byte, error) {
+	str, err := d.FormatString()
+	if err != nil {
+		return nil, err
+	}
 	// https://www.programming-books.io/essential/go/custom-json-marshaling-468765d144a34e87b913c7674e66c3a4
 	// NOTE: if you forget the enclosing quotes, MarshalJSON doesn't emit anything and doesn't error out
-	// s := "\"" + d.t.Format(d.Format) + "\""
-	s := `"` + d.Format.FormatString(d.t) + `"`
-	return []byte(s), nil
+	return []byte(`"` + str + `"`), nil
 }
 
 func (d *formattedDate) UnmarshalJSON(b []byte) error {
-	// the default unmarshall seems to be fine - from what I can tell the GitHub API is using it
-	return d.t.UnmarshalJSON(b)
+	return json.Unmarshal(b, &d.datetime)
 }
 
-func (d formattedDate) String() string {
-	// return d.t.Format(d.Format)
-	return d.Format.FormatString(d.t)
+// FormatString formats d with the given format.
+// If the format is nil, it jsut returns d
+func (d *formattedDate) FormatString() (string, error) {
+	if d.Format == nil {
+		return d.datetime, nil
+	}
+	t, err := time.Parse(time.RFC3339, d.datetime)
+	if err != nil {
+		return "", err
+	}
+	return d.Format.FormatString(t), nil
 }
 
 type starredRepositoryEdge struct {
@@ -213,11 +231,16 @@ func stats(pf flag.PassedFlags) error {
 	output, outputExists := pf["--output"].(string)
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
-	dateFormatStr := pf["--date-format"].(string)
+	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
 
-	dateFormat, err := strftime.New(dateFormatStr)
-	if err != nil {
-		return fmt.Errorf("--date-format error: %w", err)
+	var dateFormat *strftime.Strftime
+	var err error
+
+	if dateFormatStrExists {
+		dateFormat, err = strftime.New(dateFormatStr)
+		if err != nil {
+			return fmt.Errorf("--date-format error: %w", err)
+		}
 	}
 
 	fp := os.Stdout
@@ -237,7 +260,7 @@ func stats(pf flag.PassedFlags) error {
 	switch format {
 	case "csv":
 		p = NewCSVPrinter(buf)
-	case "json":
+	case "jsonl":
 		p = NewJSONPrinter(buf)
 	default:
 		return fmt.Errorf("unknown output format: %s", format)
@@ -409,16 +432,14 @@ func main() {
 			command.Flag(
 				"--format",
 				"Output format",
-				value.StringEnum("csv", "json"),
+				value.StringEnum("csv", "jsonl"),
 				flag.Default("csv"),
 				flag.Required(),
 			),
 			command.Flag(
 				"--date-format",
-				"Format for outputted dates. See https://github.com/lestrrat-go/strftime#supported-conversion-specifications for details",
+				"Datetime output format. See https://github.com/lestrrat-go/strftime for details. If not passed, the GitHub default is RFC 3339. Consider using '%b %d, %Y' for csv format",
 				value.String,
-				flag.Default("%b %d, %Y"),
-				flag.Required(),
 			),
 		),
 		section.Flag(
