@@ -122,6 +122,7 @@ func (p *CSVPrinter) Header() error {
 		"Topics",
 		"UpdatedAt",
 		"Url",
+		"README",
 	})
 	if err != nil {
 		return fmt.Errorf("CSV header err: %w", err)
@@ -160,6 +161,7 @@ func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 		strings.Join(topics, " "),
 		updatedAt,
 		sr.Node.Url,
+		sr.Node.Object.Blob.Text,
 	})
 	p.count++
 	if err != nil {
@@ -191,7 +193,7 @@ func (ZincPrinter) Header() error {
 	return nil
 }
 
-func (p *ZincPrinter) Line(sR *starredRepositoryEdge) error {
+func (p *ZincPrinter) Line(sr *starredRepositoryEdge) error {
 
 	_, err := p.w.Write([]byte(`{ "index" : { "_index" : "` + p.indexName + `" } }` + "\n"))
 	if err != nil {
@@ -199,34 +201,35 @@ func (p *ZincPrinter) Line(sR *starredRepositoryEdge) error {
 	}
 
 	topics := []string{}
-	for i := range sR.Node.RepositoryTopics.Nodes {
-		topics = append(topics, sR.Node.RepositoryTopics.Nodes[i].Topic.Name)
+	for i := range sr.Node.RepositoryTopics.Nodes {
+		topics = append(topics, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
 	}
 	topicsStr := strings.Join(topics, " ")
-	pushedAt, err := sR.Node.PushedAt.FormatString()
+	pushedAt, err := sr.Node.PushedAt.FormatString()
 	if err != nil {
 		return err
 	}
-	starredAt, err := sR.StarredAt.FormatString()
+	starredAt, err := sr.StarredAt.FormatString()
 	if err != nil {
 		return nil
 	}
 
-	updatedAt, err := sR.Node.UpdatedAt.FormatString()
+	updatedAt, err := sr.Node.UpdatedAt.FormatString()
 	if err != nil {
 		return nil
 	}
 
 	item := map[string]interface{}{
-		"Description":    sR.Node.Description,
-		"HomepageURL":    sR.Node.HomepageURL,
-		"NameWithOwner":  sR.Node.NameWithOwner,
+		"Description":    sr.Node.Description,
+		"HomepageURL":    sr.Node.HomepageURL,
+		"NameWithOwner":  sr.Node.NameWithOwner,
 		"PushedAt":       pushedAt,
-		"StargazerCount": sR.Node.StargazerCount,
+		"StargazerCount": sr.Node.StargazerCount,
 		"StarredAt":      starredAt,
 		"Topics":         topicsStr,
 		"UpdatedAt":      updatedAt,
-		"Url":            sR.Node.Url,
+		"Url":            sr.Node.Url,
+		"README":         sr.Node.Object.Blob.Text,
 	}
 
 	buf, err := json.Marshal(item)
@@ -286,8 +289,13 @@ func (d *formattedDate) FormatString() (string, error) {
 type starredRepositoryEdge struct {
 	StarredAt formattedDate
 	Node      struct {
-		Description      string
-		HomepageURL      string
+		Description string
+		HomepageURL string
+		Object      struct {
+			Blob struct {
+				Text string
+			} `graphql:"... on Blob"`
+		} `graphql:"object(expression: \"HEAD:README.md\") @include(if: $includeREADME)"`
 		NameWithOwner    string
 		PushedAt         formattedDate
 		RepositoryTopics struct {
@@ -311,6 +319,7 @@ func stats(pf flag.PassedFlags) error {
 	output, outputExists := pf["--output"].(string)
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
+	includeReadmes := pf["--include-readmes"].(bool)
 
 	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
 
@@ -381,6 +390,7 @@ func stats(pf flag.PassedFlags) error {
 	variables := map[string]interface{}{
 		"starredRepositoriesCursor": (*githubv4.String)(nil),
 		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
+		"includeREADME":             githubv4.Boolean(includeReadmes),
 	}
 
 	for i := 0; i < maxPages; i++ {
@@ -532,6 +542,12 @@ func main() {
 				value.String,
 				flag.Default("starghaze"),
 			),
+			command.Flag(
+				"--include-readmes",
+				"Search for README.md.",
+				value.Bool,
+				flag.Default("false"),
+			),
 		),
 		section.Flag(
 			"--max-pages",
@@ -597,7 +613,6 @@ func main() {
 			"--sheet-id",
 			"ID For the particulare sheet. Viewable from `gid` URL param",
 			value.Int,
-			flag.Default("0"),
 			flag.EnvVars("STARGHAZE_SHEET_ID"),
 			flag.Required(),
 		),
@@ -605,7 +620,6 @@ func main() {
 			"--spreadsheet-id",
 			"ID for the whole spreadsheet. Viewable from URL",
 			value.String,
-			flag.Default("15AXUtql31P62zxvEnqxNnb8ZcCWnBUYpROAsrtAhOV0"),
 			flag.EnvVars("STARGHAZE_SPREADSHEET_ID"),
 			flag.Required(),
 		),

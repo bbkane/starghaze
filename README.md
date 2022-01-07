@@ -16,7 +16,7 @@ Note: most of these options have sane defaults already set. Use `--help` to see 
 
 ```bash
 GITHUB_TOKEN=my_token_value starghaze github stats \
-    --date-format '2006-02-01' \
+    --date-format '%b %d, %Y' \
     --format csv \
     --max-pages 3 \
     --output stars.csv \

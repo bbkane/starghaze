@@ -157,10 +157,40 @@ The one I want is:
     }
   }
 }
-
 ```
 
-breaking it up into fragments...
+## Getting the README
+
+I want to get the README when I pass the README flag - https://stackoverflow.com/a/46254836/2958070
+
+```graphql
+{
+  viewer {
+    starredRepositories(first: 2, orderBy: {field: STARRED_AT, direction: ASC}) {
+      edges {
+        node {
+          nameWithOwner
+          object(expression: "HEAD:README.md") {
+            ... on Blob {
+              text
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+```
+
+Ok... let's see how to use that on expression in my thing, then how to make it optional - expression done. Need https://graphql.org/learn/queries/#directives for @include directive
+
+https://github.com/shurcooL/githubv4/issues/49#issuecomment-549079045
+
+Follow TODO; time to sleep!
 
 # Google Sheets Authentication/Authorization
 
