@@ -116,13 +116,14 @@ func (p *CSVPrinter) Header() error {
 		"Description",
 		"HomepageURL",
 		"NameWithOwner",
+		"Languages",
 		"PushedAt",
+		"README",
 		"StargazerCount",
 		"StarredAt",
 		"Topics",
 		"UpdatedAt",
 		"Url",
-		"README",
 	})
 	if err != nil {
 		return fmt.Errorf("CSV header err: %w", err)
@@ -132,10 +133,12 @@ func (p *CSVPrinter) Header() error {
 
 func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 
-	topics := []string{}
+	topicsList := []string{}
 	for i := range sr.Node.RepositoryTopics.Nodes {
-		topics = append(topics, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
+		topicsList = append(topicsList, sr.Node.RepositoryTopics.Nodes[i].Topic.Name)
 	}
+	topics := strings.Join(topicsList, " ")
+
 	pushedAt, err := sr.Node.PushedAt.FormatString()
 	if err != nil {
 		return err
@@ -150,18 +153,25 @@ func (p *CSVPrinter) Line(sr *starredRepositoryEdge) error {
 		return nil
 	}
 
+	languagesList := []string{}
+	for i := range sr.Node.Languages.Edges {
+		languagesList = append(languagesList, sr.Node.Languages.Edges[i].Node.Name)
+	}
+	languages := strings.Join(languagesList, " ")
+
 	err = p.writer.Write([]string{
 		strconv.Itoa(p.count),
 		sr.Node.Description,
 		sr.Node.HomepageURL,
 		sr.Node.NameWithOwner,
+		languages,
 		pushedAt,
+		sr.Node.Object.Blob.Text, // README
 		strconv.Itoa(sr.Node.StargazerCount),
 		starredAt,
-		strings.Join(topics, " "),
+		topics,
 		updatedAt,
 		sr.Node.Url,
-		sr.Node.Object.Blob.Text,
 	})
 	p.count++
 	if err != nil {
@@ -219,10 +229,17 @@ func (p *ZincPrinter) Line(sr *starredRepositoryEdge) error {
 		return nil
 	}
 
+	languagesList := []string{}
+	for i := range sr.Node.Languages.Edges {
+		languagesList = append(languagesList, sr.Node.Languages.Edges[i].Node.Name)
+	}
+	languages := strings.Join(languagesList, " ")
+
 	item := map[string]interface{}{
 		"Description":    sr.Node.Description,
 		"HomepageURL":    sr.Node.HomepageURL,
 		"NameWithOwner":  sr.Node.NameWithOwner,
+		"Languages":      languages,
 		"PushedAt":       pushedAt,
 		"StargazerCount": sr.Node.StargazerCount,
 		"StarredAt":      starredAt,
@@ -291,12 +308,20 @@ type starredRepositoryEdge struct {
 	Node      struct {
 		Description string
 		HomepageURL string
-		Object      struct {
+		Languages   struct {
+			Edges []struct {
+				Size int
+				Node struct {
+					Name string
+				}
+			}
+		} `graphql:"languages(first: 10)"`
+		NameWithOwner string
+		Object        struct {
 			Blob struct {
 				Text string
 			} `graphql:"... on Blob"`
 		} `graphql:"object(expression: \"HEAD:README.md\") @include(if: $includeREADME)"`
-		NameWithOwner    string
 		PushedAt         formattedDate
 		RepositoryTopics struct {
 			Nodes []struct {
