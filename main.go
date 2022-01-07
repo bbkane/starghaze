@@ -59,6 +59,8 @@ type Printer interface {
 	Flush() error
 }
 
+// -- JSONPrinter
+
 type JSONPrinter struct {
 	w io.Writer
 }
@@ -93,6 +95,8 @@ func (p *JSONPrinter) Line(sR *starredRepositoryEdge) error {
 func (JSONPrinter) Flush() error {
 	return nil
 }
+
+// -- CSVPrinter
 
 type CSVPrinter struct {
 	writer *csv.Writer
@@ -169,7 +173,83 @@ func (p *CSVPrinter) Flush() error {
 	return p.writer.Error()
 }
 
-// formatted
+// -- ZincPrinter
+
+type ZincPrinter struct {
+	w         io.Writer
+	indexName string
+}
+
+func NewZincPrinter(w io.Writer, indexName string) *ZincPrinter {
+	return &ZincPrinter{
+		w:         w,
+		indexName: indexName,
+	}
+}
+
+func (ZincPrinter) Header() error {
+	return nil
+}
+
+func (p *ZincPrinter) Line(sR *starredRepositoryEdge) error {
+
+	_, err := p.w.Write([]byte(`{ "index" : { "_index" : "` + p.indexName + `" } }` + "\n"))
+	if err != nil {
+		return fmt.Errorf("header write err: %w", err)
+	}
+
+	topics := []string{}
+	for i := range sR.Node.RepositoryTopics.Nodes {
+		topics = append(topics, sR.Node.RepositoryTopics.Nodes[i].Topic.Name)
+	}
+	topicsStr := strings.Join(topics, " ")
+	pushedAt, err := sR.Node.PushedAt.FormatString()
+	if err != nil {
+		return err
+	}
+	starredAt, err := sR.StarredAt.FormatString()
+	if err != nil {
+		return nil
+	}
+
+	updatedAt, err := sR.Node.UpdatedAt.FormatString()
+	if err != nil {
+		return nil
+	}
+
+	item := map[string]interface{}{
+		"Description":    sR.Node.Description,
+		"HomepageURL":    sR.Node.HomepageURL,
+		"NameWithOwner":  sR.Node.NameWithOwner,
+		"PushedAt":       pushedAt,
+		"StargazerCount": sR.Node.StargazerCount,
+		"StarredAt":      starredAt,
+		"Topics":         topicsStr,
+		"UpdatedAt":      updatedAt,
+		"Url":            sR.Node.Url,
+	}
+
+	buf, err := json.Marshal(item)
+	if err != nil {
+		return fmt.Errorf("json marshall err: %w", err)
+	}
+	_, err = p.w.Write(buf)
+	if err != nil {
+		return fmt.Errorf("file write err: %w", err)
+	}
+	_, err = p.w.Write([]byte{'\n'})
+	if err != nil {
+		return fmt.Errorf("newline write err: %w", err)
+	}
+	return nil
+}
+
+func (ZincPrinter) Flush() error {
+	return nil
+}
+
+// -- formattedDate
+
 type formattedDate struct {
 	datetime string
 	// Format can be nil to do no processing on the datetime.
@@ -231,6 +311,7 @@ func stats(pf flag.PassedFlags) error {
 	output, outputExists := pf["--output"].(string)
 	format := pf["--format"].(string)
 	timeout := pf["--timeout"].(time.Duration)
+
 	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
 
 	var dateFormat *strftime.Strftime
@@ -242,6 +323,8 @@ func stats(pf flag.PassedFlags) error {
 			return fmt.Errorf("--date-format error: %w", err)
 		}
 	}
+
+	zincIndexName := pf["--zinc-index-name"].(string)
 
 	fp := os.Stdout
 	if outputExists {
@@ -262,6 +345,8 @@ func stats(pf flag.PassedFlags) error {
 		p = NewCSVPrinter(buf)
 	case "jsonl":
 		p = NewJSONPrinter(buf)
+	case "zinc":
+		p = NewZincPrinter(buf, zincIndexName)
 	default:
 		return fmt.Errorf("unknown output format: %s", format)
 	}
@@ -432,7 +517,7 @@ func main() {
 			command.Flag(
 				"--format",
 				"Output format",
-				value.StringEnum("csv", "jsonl"),
+				value.StringEnum("csv", "jsonl", "zinc"),
 				flag.Default("csv"),
 				flag.Required(),
 			),
@@ -440,6 +525,12 @@ func main() {
 				"--date-format",
 				"Datetime output format. See https://github.com/lestrrat-go/strftime for details. If not passed, the GitHub default is RFC 3339. Consider using '%b %d, %Y' for csv format",
 				value.String,
+			),
+			command.Flag(
+				"--zinc-index-name",
+				"Only valid for --format zinc.",
+				value.String,
+				flag.Default("starghaze"),
 			),
 		),
 		section.Flag(
