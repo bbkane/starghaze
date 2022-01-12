@@ -280,14 +280,36 @@ func format(pf flag.PassedFlags) error {
 	}
 
 	output, outputExists := pf["--output"].(string)
-	fp := os.Stdout
+	outputFp := os.Stdout
 	if outputExists {
 		newFP, err := os.Create(output)
 		if err != nil {
 			return fmt.Errorf("file open err: %w", err)
 		}
-		fp = newFP
+		outputFp = newFP
 		defer newFP.Close()
+	}
+
+	outputBuf := bufio.NewWriter(outputFp)
+	defer outputBuf.Flush()
+
+	var p Printer
+	switch format {
+	case "csv":
+		p = NewCSVPrinter(outputBuf)
+	case "jsonl":
+		p = NewJSONPrinter(outputBuf)
+	case "zinc":
+		p = NewZincPrinter(outputBuf, zincIndexName)
+	default:
+		return fmt.Errorf("unknown output format: %s", format)
+	}
+
+	defer p.Flush()
+
+	err = p.Header()
+	if err != nil {
+		return err
 	}
 
 	// https://stackoverflow.com/a/16615559/2958070
@@ -305,7 +327,17 @@ func format(pf flag.PassedFlags) error {
 		if err != nil {
 			return fmt.Errorf("json Unmarshal error: %w", err)
 		}
+
+		for i := range query.Viewer.StarredRepositories.Edges {
+			edge := query.Viewer.StarredRepositories.Edges[i]
+			edge.StarredAt.Format = dateFormat
+			edge.Node.PushedAt.Format = dateFormat
+			edge.Node.UpdatedAt.Format = dateFormat
+			err := p.Line(&edge)
+			if err != nil {
+				return fmt.Errorf("line print error: %w", err)
+			}
+		}
 	}
-	fmt.Println(format, zincIndexName, dateFormat, fp)
 	return nil
 }
