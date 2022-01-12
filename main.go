@@ -177,13 +177,47 @@ func main() {
 		"starghaze",
 		section.New(
 			"Save GitHub Starred Repos",
-			section.ExistingSection("github", githubSection),
-			section.ExistingSection("gsheets", gsheetsSection),
+			section.Command(
+				"format",
+				"Format downloaded GitHub Stars",
+				format,
+				command.Flag(
+					"--format",
+					"Output format",
+					value.StringEnum("csv", "jsonl", "zinc"),
+					flag.Default("csv"),
+					flag.Required(),
+				),
+				command.Flag(
+					"--date-format",
+					"Datetime output format. See https://github.com/lestrrat-go/strftime for details. If not passed, the GitHub default is RFC 3339. Consider using '%b %d, %Y' for csv format",
+					value.String,
+				),
+				command.Flag(
+					"--zinc-index-name",
+					"Only valid for --format zinc.",
+					value.String,
+					flag.Default("starghaze"),
+				),
+				command.Flag(
+					"--input",
+					"Input file",
+					value.String,
+					flag.Required(),
+				),
+				command.Flag(
+					"--output",
+					"output file. Prints to stdout if not passed",
+					value.Path,
+				),
+			),
 			section.Command(
 				"version",
 				"Print version",
 				printVersion,
 			),
+			section.ExistingSection("github", githubSection),
+			section.ExistingSection("gsheets", gsheetsSection),
 		),
 	)
 	app.MustRun(os.Args, os.LookupEnv)

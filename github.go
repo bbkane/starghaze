@@ -48,6 +48,18 @@ type starredRepositoryEdge struct {
 	}
 }
 
+type Query struct {
+	Viewer struct {
+		StarredRepositories struct {
+			Edges    []starredRepositoryEdge
+			PageInfo struct {
+				EndCursor   githubv4.String
+				HasNextPage githubv4.Boolean
+			}
+		} `graphql:"starredRepositories(first: $starredRepositoryPageSize, orderBy: {field:STARRED_AT, direction:ASC}, after: $starredRepositoriesCursor)"`
+	}
+}
+
 func githubStarsDownload(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
@@ -85,17 +97,7 @@ func githubStarsDownload(pf flag.PassedFlags) error {
 	httpClient := oauth2.NewClient(ctx, src)
 	client := githubv4.NewClient(httpClient)
 
-	var query struct {
-		Viewer struct {
-			StarredRepositories struct {
-				Edges    []starredRepositoryEdge
-				PageInfo struct {
-					EndCursor   githubv4.String
-					HasNextPage githubv4.Boolean
-				}
-			} `graphql:"starredRepositories(first: $starredRepositoryPageSize, orderBy: {field:STARRED_AT, direction:ASC}, after: $starredRepositoriesCursor)"`
-		}
-	}
+	var query Query
 
 	variables := map[string]interface{}{
 		"starredRepositoriesCursor": (*githubv4.String)(afterPtr),

@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bbkane/warg/flag"
 	"github.com/lestrrat-go/strftime"
 )
 
@@ -260,4 +263,49 @@ func (d *formattedDate) FormatString() (string, error) {
 		return "", err
 	}
 	return d.Format.FormatString(t), nil
+}
+
+func format(pf flag.PassedFlags) error {
+	format := pf["--format"].(string)
+	zincIndexName := pf["--zinc-index-name"].(string)
+
+	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
+	var dateFormat *strftime.Strftime
+	var err error
+	if dateFormatStrExists {
+		dateFormat, err = strftime.New(dateFormatStr)
+		if err != nil {
+			return fmt.Errorf("--date-format error: %w", err)
+		}
+	}
+
+	output, outputExists := pf["--output"].(string)
+	fp := os.Stdout
+	if outputExists {
+		newFP, err := os.Create(output)
+		if err != nil {
+			return fmt.Errorf("file open err: %w", err)
+		}
+		fp = newFP
+		defer newFP.Close()
+	}
+
+	// https://stackoverflow.com/a/16615559/2958070
+	input := pf["--input"].(string)
+	inputFp, err := os.Open(input)
+	if err != nil {
+		return fmt.Errorf("file open err: %w", err)
+	}
+	defer inputFp.Close()
+
+	scanner := bufio.NewScanner(inputFp)
+	var query Query
+	for scanner.Scan() {
+		err = json.Unmarshal(scanner.Bytes(), &query)
+		if err != nil {
+			return fmt.Errorf("json Unmarshal error: %w", err)
+		}
+	}
+	fmt.Println(format, zincIndexName, dateFormat, fp)
+	return nil
 }
