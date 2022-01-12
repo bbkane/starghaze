@@ -41,6 +41,8 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/keys.json starghaze gsheets upload \
 
 ## TODO
 
-- `readmes` command to download READMEs for starred repos,
-- zinc command to push to [zinc](https://github.com/prabhatsharma/zinc) and see if I like zinc
-- formattableDate can be just a string and a free function :)
+- print nextToken on error so we can retry
+- open file to append
+- comment out unused fields, reduce maxLanguages
+- Change stats to `github stars download` and jsut save that to JSONL
+- Add `format` command to change JSONL to whatever (this means I can format the same data)

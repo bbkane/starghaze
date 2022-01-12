@@ -337,6 +337,91 @@ type starredRepositoryEdge struct {
 	}
 }
 
+func githubStarsDownload(pf flag.PassedFlags) error {
+	token := pf["--token"].(string)
+	pageSize := pf["--page-size"].(int)
+	maxPages := pf["--max-pages"].(int)
+	timeout := pf["--timeout"].(time.Duration)
+	includeReadmes := pf["--include-readmes"].(bool)
+	maxLanguages := pf["--max-languages"].(int)
+	maxRepoTopics := pf["--max-repo-topics"].(int)
+
+	var afterPtr *string = nil
+	afterStr, afterExists := pf["--after"].(string)
+	if afterExists {
+		afterPtr = &afterStr
+	}
+
+	output, outputExists := pf["--output"].(string)
+	fp := os.Stdout
+	if outputExists {
+		newFP, err := os.Create(output)
+		if err != nil {
+			return fmt.Errorf("file open err: %w", err)
+		}
+		fp = newFP
+		defer newFP.Close()
+	}
+
+	buf := bufio.NewWriter(fp)
+	defer buf.Flush()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	src := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	httpClient := oauth2.NewClient(ctx, src)
+	client := githubv4.NewClient(httpClient)
+
+	var query struct {
+		Viewer struct {
+			StarredRepositories struct {
+				Edges    []starredRepositoryEdge
+				PageInfo struct {
+					EndCursor   githubv4.String
+					HasNextPage githubv4.Boolean
+				}
+			} `graphql:"starredRepositories(first: $starredRepositoryPageSize, orderBy: {field:STARRED_AT, direction:ASC}, after: $starredRepositoriesCursor)"`
+		}
+	}
+
+	variables := map[string]interface{}{
+		"starredRepositoriesCursor": (*githubv4.String)(afterPtr),
+		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
+		"includeREADME":             githubv4.Boolean(includeReadmes),
+		"maxLanguages":              githubv4.Int(maxLanguages),
+		"maxRepositoryTopics":       githubv4.Int(maxRepoTopics),
+	}
+
+	for i := 0; i < maxPages; i++ {
+		err := client.Query(ctx, &query, variables)
+		if err != nil {
+			return fmt.Errorf(
+				"afterToken: %v , query err: %w",
+				variables["starredRepositoriesCursor"],
+				err,
+			)
+		}
+
+		view, err := json.Marshal(&query)
+		if err != nil {
+			return fmt.Errorf("json marshall err: %w", err)
+		}
+		view = append(view, byte('\n'))
+		_, err = buf.Write(view)
+		if err != nil {
+			return fmt.Errorf("file write err: %w", err)
+		}
+
+		if !query.Viewer.StarredRepositories.PageInfo.HasNextPage {
+			break
+		}
+		variables["starredRepositoriesCursor"] = githubv4.NewString(query.Viewer.StarredRepositories.PageInfo.EndCursor)
+	}
+	return nil
+}
+
 func stats(pf flag.PassedFlags) error {
 	token := pf["--token"].(string)
 	pageSize := pf["--page-size"].(int)
@@ -350,7 +435,6 @@ func stats(pf flag.PassedFlags) error {
 	maxRepoTopics := pf["--max-repo-topics"].(int)
 
 	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
-
 	var dateFormat *strftime.Strftime
 	var err error
 
@@ -359,6 +443,12 @@ func stats(pf flag.PassedFlags) error {
 		if err != nil {
 			return fmt.Errorf("--date-format error: %w", err)
 		}
+	}
+
+	var afterPtr *string = nil
+	afterStr, afterExists := pf["--after"].(string)
+	if afterExists {
+		afterPtr = &afterStr
 	}
 
 	fp := os.Stdout
@@ -414,7 +504,7 @@ func stats(pf flag.PassedFlags) error {
 	}
 
 	variables := map[string]interface{}{
-		"starredRepositoriesCursor": (*githubv4.String)(nil),
+		"starredRepositoriesCursor": (*githubv4.String)(afterPtr),
 		"starredRepositoryPageSize": githubv4.NewInt(githubv4.Int(pageSize)),
 		"includeREADME":             githubv4.Boolean(includeReadmes),
 		"maxLanguages":              githubv4.Int(maxLanguages),
@@ -424,7 +514,11 @@ func stats(pf flag.PassedFlags) error {
 	for i := 0; i < maxPages; i++ {
 		err := client.Query(ctx, &query, variables)
 		if err != nil {
-			return fmt.Errorf("query err: %w", err)
+			return fmt.Errorf(
+				"afterToken: %v , query err: %w",
+				variables["starredRepositoriesCursor"],
+				err,
+			)
 		}
 
 		for i := range query.Viewer.StarredRepositories.Edges {
@@ -548,6 +642,38 @@ func main() {
 		// 	"Save starred repo READMEs",
 		// 	readmes,
 		// ),
+		section.Section(
+			"stars",
+			"GitHub star commands",
+			section.Command(
+				"download",
+				"Download GitHub Stars",
+				githubStarsDownload,
+				command.Flag(
+					"--include-readmes",
+					"Search for README.md.",
+					value.Bool,
+					flag.Default("false"),
+				),
+				command.Flag(
+					"--max-languages",
+					"Max number of languages to query on a repo",
+					value.Int,
+					flag.Default("20"),
+				),
+				command.Flag(
+					"--max-repo-topics",
+					"Max number of topics to query on a repo",
+					value.Int,
+					flag.Default("20"),
+				),
+				command.Flag(
+					"--after",
+					"PageInfo EndCursor to start from",
+					value.String,
+				),
+			),
+		),
 		section.Command(
 			"stats",
 			"Save starred repo information",
@@ -587,6 +713,11 @@ func main() {
 				"Max number of topics to query on a repo",
 				value.Int,
 				flag.Default("20"),
+			),
+			command.Flag(
+				"--after",
+				"PageInfo EndCursor to start from",
+				value.String,
 			),
 		),
 		section.Flag(
