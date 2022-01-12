@@ -12,123 +12,98 @@ import (
 
 func main() {
 
-	githubSection := section.New(
-		"GitHub commands",
-		// section.Command(
-		// 	"readmes",
-		// 	"Save starred repo READMEs",
-		// 	readmes,
-		// ),
-		section.Section(
-			"stars",
-			"GitHub star commands",
-			section.Command(
-				"download",
-				"Download GitHub Stars",
-				githubStarsDownload,
-				command.Flag(
-					"--include-readmes",
-					"Search for README.md.",
-					value.Bool,
-					flag.Default("false"),
-				),
-				command.Flag(
-					"--max-languages",
-					"Max number of languages to query on a repo",
-					value.Int,
-					flag.Default("20"),
-				),
-				command.Flag(
-					"--max-repo-topics",
-					"Max number of topics to query on a repo",
-					value.Int,
-					flag.Default("20"),
-				),
-				command.Flag(
-					"--after",
-					"PageInfo EndCursor to start from",
-					value.String,
-				),
-			),
+	downloadCmd := command.New(
+		"Download star info",
+		githubStarsDownload,
+		command.Flag(
+			"--include-readmes",
+			"Search for README.md.",
+			value.Bool,
+			flag.Default("false"),
 		),
-		section.Command(
-			"stats",
-			"Save starred repo information",
-			stats,
-			command.Flag(
-				"--format",
-				"Output format",
-				value.StringEnum("csv", "jsonl", "zinc"),
-				flag.Default("csv"),
-				flag.Required(),
-			),
-			command.Flag(
-				"--date-format",
-				"Datetime output format. See https://github.com/lestrrat-go/strftime for details. If not passed, the GitHub default is RFC 3339. Consider using '%b %d, %Y' for csv format",
-				value.String,
-			),
-			command.Flag(
-				"--zinc-index-name",
-				"Only valid for --format zinc.",
-				value.String,
-				flag.Default("starghaze"),
-			),
-			command.Flag(
-				"--include-readmes",
-				"Search for README.md.",
-				value.Bool,
-				flag.Default("false"),
-			),
-			command.Flag(
-				"--max-languages",
-				"Max number of languages to query on a repo",
-				value.Int,
-				flag.Default("20"),
-			),
-			command.Flag(
-				"--max-repo-topics",
-				"Max number of topics to query on a repo",
-				value.Int,
-				flag.Default("20"),
-			),
-			command.Flag(
-				"--after",
-				"PageInfo EndCursor to start from",
-				value.String,
-			),
+		command.Flag(
+			"--max-languages",
+			"Max number of languages to query on a repo",
+			value.Int,
+			flag.Default("20"),
 		),
-		section.Flag(
+		command.Flag(
+			"--max-repo-topics",
+			"Max number of topics to query on a repo",
+			value.Int,
+			flag.Default("20"),
+		),
+		command.Flag(
+			"--after",
+			"PageInfo EndCursor to start from",
+			value.String,
+		),
+		command.Flag(
 			"--max-pages",
 			"Max number of pages to fetch",
 			value.Int,
 			flag.Default("1"),
 			flag.Required(),
 		),
-		section.Flag(
+		command.Flag(
 			"--output",
 			"output file. Prints to stdout if not passed",
 			value.Path,
 		),
-		section.Flag(
+		command.Flag(
 			"--page-size",
 			"Number of starred repos in page",
 			value.Int,
 			flag.Default("100"),
 			flag.Required(),
 		),
-		section.Flag(
+		command.Flag(
 			"--timeout",
 			"Timeout for a run. Use https://pkg.go.dev/time#Duration to build it",
 			value.Duration,
 			flag.Default("10m"),
 			flag.Required(),
 		),
-		section.Flag(
+		command.Flag(
 			"--token",
 			"Github PAT",
 			value.String,
 			flag.EnvVars("STARGHAZE_GITHUB_TOKEN", "GITHUB_TOKEN"),
 			flag.Required(),
+		),
+	)
+
+	formatCmd := command.New(
+		"Format downloaded GitHub Stars",
+		format,
+		command.Flag(
+			"--format",
+			"Output format",
+			value.StringEnum("csv", "jsonl", "zinc"),
+			flag.Default("csv"),
+			flag.Required(),
+		),
+		command.Flag(
+			"--date-format",
+			"Datetime output format. See https://github.com/lestrrat-go/strftime for details. If not passed, the GitHub default is RFC 3339. Consider using '%b %d, %Y' for csv format",
+			value.String,
+		),
+		command.Flag(
+			"--zinc-index-name",
+			"Only valid for --format zinc.",
+			value.String,
+			flag.Default("starghaze"),
+		),
+		command.Flag(
+			"--input",
+			"Input file",
+			value.String,
+			flag.Required(),
+		),
+		command.Flag(
+			"--output",
+			"output file. Prints to stdout if not passed",
+			value.Path,
 		),
 	)
 
@@ -178,46 +153,22 @@ func main() {
 		section.New(
 			"Save GitHub Starred Repos",
 			section.Command(
-				"format",
-				"Format downloaded GitHub Stars",
-				format,
-				command.Flag(
-					"--format",
-					"Output format",
-					value.StringEnum("csv", "jsonl", "zinc"),
-					flag.Default("csv"),
-					flag.Required(),
-				),
-				command.Flag(
-					"--date-format",
-					"Datetime output format. See https://github.com/lestrrat-go/strftime for details. If not passed, the GitHub default is RFC 3339. Consider using '%b %d, %Y' for csv format",
-					value.String,
-				),
-				command.Flag(
-					"--zinc-index-name",
-					"Only valid for --format zinc.",
-					value.String,
-					flag.Default("starghaze"),
-				),
-				command.Flag(
-					"--input",
-					"Input file",
-					value.String,
-					flag.Required(),
-				),
-				command.Flag(
-					"--output",
-					"output file. Prints to stdout if not passed",
-					value.Path,
-				),
-			),
-			section.Command(
 				"version",
 				"Print version",
 				printVersion,
 			),
-			section.ExistingSection("github", githubSection),
-			section.ExistingSection("gsheets", gsheetsSection),
+			section.ExistingCommand(
+				"download",
+				downloadCmd,
+			),
+			section.ExistingCommand(
+				"format",
+				formatCmd,
+			),
+			section.ExistingSection(
+				"gsheets",
+				gsheetsSection,
+			),
 		),
 	)
 	app.MustRun(os.Args, os.LookupEnv)

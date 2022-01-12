@@ -41,8 +41,7 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/keys.json starghaze gsheets upload \
 
 ## TODO
 
-- print nextToken on error so we can retry
-- open file to append
+- open file to append?
 - comment out unused fields, reduce maxLanguages
-- Change stats to `github stars download` and jsut save that to JSONL
-- Add `format` command to change JSONL to whatever (this means I can format the same data)
+- make scanner size configurable
+- add option to include-readme when formattign too

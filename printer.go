@@ -321,6 +321,11 @@ func format(pf flag.PassedFlags) error {
 	defer inputFp.Close()
 
 	scanner := bufio.NewScanner(inputFp)
+
+	const maxCapacity = 10 * 1024 * 1024 // 1 MB - TODO: make configurable
+	scannerBuf := make([]byte, maxCapacity)
+	scanner.Buffer(scannerBuf, maxCapacity)
+
 	var query Query
 	for scanner.Scan() {
 		err = json.Unmarshal(scanner.Bytes(), &query)
@@ -338,6 +343,10 @@ func format(pf flag.PassedFlags) error {
 				return fmt.Errorf("line print error: %w", err)
 			}
 		}
+	}
+	err = scanner.Err()
+	if err != nil {
+		return fmt.Errorf("scanner err: %w", err)
 	}
 	return nil
 }
