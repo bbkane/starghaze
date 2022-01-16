@@ -3,7 +3,7 @@ module github.com/bbkane/starghaze
 go 1.17
 
 require (
-	github.com/bbkane/warg v0.0.6
+	github.com/bbkane/warg v0.0.8
 	github.com/shurcooL/githubv4 v0.0.0-20211117020012-5800b9de5b8b
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	google.golang.org/api v0.62.0

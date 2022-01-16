@@ -267,6 +267,8 @@ func (d *formattedDate) FormatString() (string, error) {
 
 func format(pf flag.PassedFlags) error {
 	format := pf["--format"].(string)
+	includeReadmes := pf["--include-readmes"].(bool)
+	maxLineSize := pf["--max-line-size"].(int)
 	zincIndexName := pf["--zinc-index-name"].(string)
 
 	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
@@ -322,7 +324,7 @@ func format(pf flag.PassedFlags) error {
 
 	scanner := bufio.NewScanner(inputFp)
 
-	const maxCapacity = 10 * 1024 * 1024 // 1 MB - TODO: make configurable
+	maxCapacity := maxLineSize * 1024 * 1024 // MB -> bytes
 	scannerBuf := make([]byte, maxCapacity)
 	scanner.Buffer(scannerBuf, maxCapacity)
 
@@ -338,6 +340,9 @@ func format(pf flag.PassedFlags) error {
 			edge.StarredAt.Format = dateFormat
 			edge.Node.PushedAt.Format = dateFormat
 			edge.Node.UpdatedAt.Format = dateFormat
+			if !includeReadmes {
+				edge.Node.Object.Blob.Text = ""
+			}
 			err := p.Line(&edge)
 			if err != nil {
 				return fmt.Errorf("line print error: %w", err)

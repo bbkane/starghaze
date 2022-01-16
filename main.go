@@ -89,8 +89,15 @@ func main() {
 			value.String,
 		),
 		command.Flag(
+			"--include-readmes",
+			"Search for README.md.",
+			value.Bool,
+			flag.Default("false"),
+			flag.Required(),
+		),
+		command.Flag(
 			"--zinc-index-name",
-			"Only valid for --format zinc.",
+			"Only used for --format zinc.",
 			value.String,
 			flag.Default("starghaze"),
 		),
@@ -98,6 +105,13 @@ func main() {
 			"--input",
 			"Input file",
 			value.String,
+			flag.Required(),
+		),
+		command.Flag(
+			"--max-line-size",
+			"Max line size in the file in MB",
+			value.Int,
+			flag.Default("10"),
 			flag.Required(),
 		),
 		command.Flag(
