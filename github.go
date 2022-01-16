@@ -69,7 +69,7 @@ func githubStarsDownload(pf flag.PassedFlags) error {
 	maxRepoTopics := pf["--max-repo-topics"].(int)
 
 	var afterPtr *string = nil
-	afterStr, afterExists := pf["--after"].(string)
+	afterStr, afterExists := pf["--after-cursor"].(string)
 	if afterExists {
 		afterPtr = &afterStr
 	}

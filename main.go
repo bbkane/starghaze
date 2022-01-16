@@ -34,7 +34,7 @@ func main() {
 			flag.Default("20"),
 		),
 		command.Flag(
-			"--after",
+			"--after-cursor",
 			"PageInfo EndCursor to start from",
 			value.String,
 		),
