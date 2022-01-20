@@ -47,8 +47,9 @@ func main() {
 		),
 		command.Flag(
 			"--output",
-			"output file. Prints to stdout if not passed",
+			"Output filepath. Must not exist",
 			value.Path,
+			flag.Default("starghaze_download.jsonl"),
 		),
 		command.Flag(
 			"--page-size",
@@ -79,7 +80,7 @@ func main() {
 		command.Flag(
 			"--format",
 			"Output format",
-			value.StringEnum("csv", "jsonl", "zinc"),
+			value.StringEnum("csv", "jsonl", "sqlite", "zinc"),
 			flag.Default("csv"),
 			flag.Required(),
 		),
@@ -96,6 +97,12 @@ func main() {
 			flag.Required(),
 		),
 		command.Flag(
+			"--sqlite-dsn",
+			"Sqlite DSN. Usually the file name. Only used for --format sqlite",
+			value.String,
+			flag.Default("starghaze.db"),
+		),
+		command.Flag(
 			"--zinc-index-name",
 			"Only used for --format zinc.",
 			value.String,
@@ -106,6 +113,7 @@ func main() {
 			"Input file",
 			value.String,
 			flag.Required(),
+			flag.Default("starghaze_download.jsonl"),
 		),
 		command.Flag(
 			"--max-line-size",

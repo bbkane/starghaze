@@ -1,4 +1,6 @@
 dist/
 starghaze
-tmp*
 starghaze-sa-keys.json
+starghaze.db
+starghaze_download.jsonl
+tmp*

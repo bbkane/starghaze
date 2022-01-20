@@ -74,16 +74,14 @@ func githubStarsDownload(pf flag.PassedFlags) error {
 		afterPtr = &afterStr
 	}
 
-	output, outputExists := pf["--output"].(string)
-	fp := os.Stdout
-	if outputExists {
-		newFP, err := os.Create(output)
-		if err != nil {
-			return fmt.Errorf("file open err: %w", err)
-		}
-		fp = newFP
-		defer newFP.Close()
+	outputPath := pf["--output"].(string)
+	// https://pkg.go.dev/os?utm_source=gopls#pkg-constants
+	// return error if the file exists - NOTE: this kind of screws with any plans to append
+	fp, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0666)
+	if err != nil {
+		return fmt.Errorf("file open err: %w", err)
 	}
+	defer fp.Close()
 
 	buf := bufio.NewWriter(fp)
 	defer buf.Flush()

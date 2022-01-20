@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"database/sql"
+	"embed"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -13,7 +16,11 @@ import (
 
 	"github.com/bbkane/warg/flag"
 	"github.com/lestrrat-go/strftime"
+	_ "modernc.org/sqlite"
 )
+
+//go:embed sqlite_migrations/*.sql
+var migrationFS embed.FS
 
 type Printer interface {
 	Header() error
@@ -147,6 +154,130 @@ func (p *CSVPrinter) Flush() error {
 	return p.writer.Error()
 }
 
+// -- SqlitePrinter
+
+type SqlitePrinter struct {
+	ctx context.Context
+	db  *sql.DB
+	err error
+	// we're going to use one transaction for all writes
+	// so we might as well cache it here
+	tx *sql.Tx
+}
+
+func NewSqlitePrinter(dsn string) (*SqlitePrinter, error) {
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("db open error: %s: %w", dsn, err)
+	}
+
+	// Enable foreign key checks. For historical reasons, SQLite does not check
+	// foreign key constraints by default... which is kinda insane. There's some
+	// overhead on inserts to verify foreign key integrity but it's definitely
+	// worth it.
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
+		return nil, fmt.Errorf("foreign keys pragma: %w", err)
+	}
+	if err := migrate(db, migrationFS); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		err = fmt.Errorf("can't begin tx: %w", err)
+		return nil, err
+	}
+
+	return &SqlitePrinter{
+		ctx: context.Background(), // TODO: paramaterize
+		db:  db,
+		err: nil,
+		tx:  tx,
+	}, nil
+}
+
+func (SqlitePrinter) Header() error {
+	return nil
+}
+
+func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
+	// we need to set p.err if needed so we don't commit the tx later
+
+	// Repo
+	var repoID int
+	{
+		starredAt, err := sr.StarredAt.Time()
+		if err != nil {
+			err = fmt.Errorf("StarredAt time err: %w", err)
+			p.err = err
+			return err
+		}
+
+		pushedAt, err := sr.Node.PushedAt.Time()
+		if err != nil {
+			err = fmt.Errorf("PushedAt time err: %w", err)
+			p.err = err
+			return err
+		}
+
+		updatedAt, err := sr.Node.UpdatedAt.Time()
+		if err != nil {
+			err = fmt.Errorf("UpdatedAt time err: %w", err)
+			p.err = err
+			return err
+		}
+		err = p.tx.QueryRowContext(
+			p.ctx,
+			`
+			INSERT INTO Repo (
+				StarredAt,
+				Description,
+				HomepageURL,
+				NameWithOwner,
+				Readme,
+				PushedAt,
+				StargazerCount,
+				UpdatedAt,
+				Url
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			RETURNING id
+			`,
+			(*NullTime)(&starredAt),
+			sr.Node.Description,
+			sr.Node.HomepageURL,
+			sr.Node.NameWithOwner,
+			sr.Node.Object.Blob.Text,
+			(*NullTime)(&pushedAt),
+			sr.Node.StargazerCount,
+			(*NullTime)(&updatedAt),
+			sr.Node.Url,
+		).Scan(&repoID)
+		if err != nil {
+			p.err = err
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *SqlitePrinter) Flush() error {
+
+	if p.err != nil {
+		p.tx.Rollback()
+	}
+	err := p.tx.Commit()
+	if err != nil {
+		err = fmt.Errorf("commit err: %w", err)
+		return err
+	}
+
+	return p.db.Close()
+}
+
+var _ Printer = new(SqlitePrinter)
+
 // -- ZincPrinter
 
 type ZincPrinter struct {
@@ -252,13 +383,18 @@ func (d *formattedDate) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &d.datetime)
 }
 
+func (d formattedDate) Time() (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, d.datetime)
+	return t, err
+}
+
 // FormatString formats d with the given format.
 // If the format is nil, it jsut returns d
 func (d *formattedDate) FormatString() (string, error) {
 	if d.Format == nil {
 		return d.datetime, nil
 	}
-	t, err := time.Parse(time.RFC3339, d.datetime)
+	t, err := d.Time()
 	if err != nil {
 		return "", err
 	}
@@ -269,6 +405,7 @@ func format(pf flag.PassedFlags) error {
 	format := pf["--format"].(string)
 	includeReadmes := pf["--include-readmes"].(bool)
 	maxLineSize := pf["--max-line-size"].(int)
+	sqliteDSN := pf["--sqlite-dsn"].(string)
 	zincIndexName := pf["--zinc-index-name"].(string)
 
 	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
@@ -301,6 +438,11 @@ func format(pf flag.PassedFlags) error {
 		p = NewCSVPrinter(outputBuf)
 	case "jsonl":
 		p = NewJSONPrinter(outputBuf)
+	case "sqlite":
+		p, err = NewSqlitePrinter(sqliteDSN)
+		if err != nil {
+			return fmt.Errorf("sql open err: %w", err)
+		}
 	case "zinc":
 		p = NewZincPrinter(outputBuf, zincIndexName)
 	default:
