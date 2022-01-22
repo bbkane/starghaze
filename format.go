@@ -160,6 +160,8 @@ type SqlitePrinter struct {
 	ctx context.Context
 	db  *sql.DB
 	err error
+	// Cache prepared stmts here. stmts must be attached to the tx
+	stmtMap map[string]*sql.Stmt
 	// we're going to use one transaction for all writes
 	// so we might as well cache it here
 	tx *sql.Tx
@@ -189,11 +191,27 @@ func NewSqlitePrinter(dsn string) (*SqlitePrinter, error) {
 	}
 
 	return &SqlitePrinter{
-		ctx: context.Background(), // TODO: paramaterize
-		db:  db,
-		err: nil,
-		tx:  tx,
+		ctx:     context.Background(), // TODO: paramaterize
+		db:      db,
+		err:     nil,
+		stmtMap: make(map[string]*sql.Stmt),
+		tx:      tx,
 	}, nil
+}
+
+func (p *SqlitePrinter) Prep(query string) (*sql.Stmt, error) {
+	stmt, exists := p.stmtMap[query]
+	if exists {
+		return stmt, nil
+	}
+	stmt, err := p.tx.PrepareContext(
+		p.ctx,
+		query,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return stmt, nil
 }
 
 func (SqlitePrinter) Header() error {
@@ -226,8 +244,7 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 			p.err = err
 			return err
 		}
-		err = p.tx.QueryRowContext(
-			p.ctx,
+		stmt, err := p.Prep(
 			`
 			INSERT INTO Repo (
 				StarredAt,
@@ -243,6 +260,14 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			RETURNING id
 			`,
+		)
+		if err != nil {
+			err = fmt.Errorf("RepoInsert prep err: %w", err)
+			p.err = err
+			return err
+		}
+		err = stmt.QueryRowContext(
+			p.ctx,
 			(*NullTime)(&starredAt),
 			sr.Node.Description,
 			sr.Node.HomepageURL,
@@ -254,9 +279,97 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 			sr.Node.Url,
 		).Scan(&repoID)
 		if err != nil {
+			err = fmt.Errorf("repo insert scan err: %w", err)
 			p.err = err
 			return err
 		}
+	}
+
+	// Language
+	{
+		// insert
+		for i := range sr.Node.Languages.Edges {
+			langName := sr.Node.Languages.Edges[i].Node.Name
+			size := sr.Node.Languages.Edges[i].Size
+
+			stmt, err := p.Prep(
+				`
+				INSERT INTO Language (
+					Name
+				)
+				VALUES (?)
+				ON CONFLICT(Name)
+				DO NOTHING
+				`,
+			)
+			if err != nil {
+				err = fmt.Errorf("lang insert prep err: %w", err)
+				p.err = err
+				return err
+			}
+			_, err = stmt.ExecContext(
+				p.ctx,
+				langName,
+			)
+			if err != nil {
+				err = fmt.Errorf("lang insert err: %w", err)
+				p.err = err
+				return err
+			}
+
+			// get the id
+			var langID int
+			stmt, err = p.Prep(
+				`
+				SELECT id FROM Language
+				WHERE Name = ?
+				`,
+			)
+			if err != nil {
+				err = fmt.Errorf("lang select prep err: %w", err)
+				p.err = err
+				return err
+			}
+			stmt.QueryRowContext(
+				p.ctx,
+				langName,
+			).Scan(&langID)
+			if err != nil {
+				err = fmt.Errorf("lang select scan err: %w", err)
+				p.err = err
+				return err
+			}
+			// insert Language_Repo
+			stmt, err = p.Prep(
+				`
+				INSERT INTO Language_Repo (
+					Language_id,
+					Repo_id,
+					Size
+				)
+				VALUES (?, ?, ?)
+				ON CONFLICT(Language_id, Repo_id)
+				DO UPDATE SET Size = Size + excluded.Size
+				`,
+			)
+			if err != nil {
+				err = fmt.Errorf("language_repo insert prep err: %w", err)
+				p.err = err
+				return err
+			}
+			_, err = stmt.ExecContext(
+				p.ctx,
+				langID,
+				repoID,
+				size,
+			)
+			if err != nil {
+				err = fmt.Errorf("language_repo insert err: %s: %w", sr.Node.NameWithOwner, err)
+				p.err = err
+				return err
+			}
+		}
+
 	}
 
 	return nil

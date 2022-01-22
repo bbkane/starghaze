@@ -264,3 +264,96 @@ $ cloudshell download starghaze-sa-keys.json
 $ GOOGLE_APPLICATION_CREDENTIALS=starghaze-sa-keys.json go run . gsheets upload
 No data found.
 ```
+
+# GitHub languages duplicates
+
+```
+$ go run . format --format jsonl | jq 'select(.Node.NameWithOwner == "MaxBittker/sandspiel")'
+{
+  "StarredAt": "2020-10-21T21:10:22Z",
+  "Node": {
+    "Description": "Creative cellular automata browser game ",
+    "HomepageURL": "https://sandspiel.club",
+    "Languages": {
+      "Edges": [
+        {
+          "Size": 48885,
+          "Node": {
+            "Name": "Rust"
+          }
+        },
+        {
+          "Size": 43743,
+          "Node": {
+            "Name": "JavaScript"
+          }
+        },
+        {
+          "Size": 3312,
+          "Node": {
+            "Name": "HTML"
+          }
+        },
+        {
+          "Size": 763,
+          "Node": {
+            "Name": "GLSL"
+          }
+        },
+        {
+          "Size": 763,
+          "Node": {
+            "Name": "GLSL"
+          }
+        },
+```
+
+Let's try to repro this...
+
+Sure enough:
+
+```graphql
+query {
+  repository(name:"sandspiel", owner:"MaxBittker") {
+    languages(first:20) {
+      edges {
+        size
+        node {
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+I'm just gonna use the sum and move on...
+
+```sql
+SELECT r.NameWithOwner , l.Name, ( (lr.Size * 1.0)/136051 )
+FROM Repo r
+JOIN Language_Repo lr ON r.id = lr.Repo_id
+JOIN Language l ON l.id = lr.Language_id
+WHERE r.NameWithOwner = "MaxBittker/sandspiel"
+;
+```
+
+I calculated the total lr.Size by hand = 136051
+
+```
+$ cat tmp.sql | sqlite3 ./starghaze.db
+┌──────────────────────┬────────────┬────────────────────────────┐
+│    NameWithOwner     │    Name    │ ( (lr.Size * 1.0)/136051 ) │
+├──────────────────────┼────────────┼────────────────────────────┤
+│ MaxBittker/sandspiel │ Rust       │ 0.359313786741737          │
+│ MaxBittker/sandspiel │ JavaScript │ 0.321519136206276          │
+│ MaxBittker/sandspiel │ HTML       │ 0.024343812246878          │
+│ MaxBittker/sandspiel │ GLSL       │ 0.0885917780832188         │
+│ MaxBittker/sandspiel │ CSS        │ 0.0440202571094663         │
+│ MaxBittker/sandspiel │ TypeScript │ 0.162211229612425          │
+└──────────────────────┴────────────┴────────────────────────────┘
+```
+
+Which matches the language stats in https://github.com/maxbittker/sandspiel
+
+So that matches I suppose :)
