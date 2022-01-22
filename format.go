@@ -330,7 +330,7 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 				p.err = err
 				return err
 			}
-			stmt.QueryRowContext(
+			err = stmt.QueryRowContext(
 				p.ctx,
 				langName,
 			).Scan(&langID)
@@ -339,6 +339,7 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 				p.err = err
 				return err
 			}
+
 			// insert Language_Repo
 			stmt, err = p.Prep(
 				`
@@ -370,6 +371,93 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 			}
 		}
 
+	}
+
+	// Topic
+	{
+		for i := range sr.Node.RepositoryTopics.Nodes {
+			topicName := sr.Node.RepositoryTopics.Nodes[i].Topic.Name
+			topicURL := sr.Node.RepositoryTopics.Nodes[i].URL
+
+			// insert
+			stmt, err := p.Prep(
+				`
+				INSERT INTO Topic (
+					Name,
+					Url
+				)
+				VALUES (?, ?)
+				ON CONFLICT(Name)
+				DO NOTHING
+				ON CONFLICT(Url)
+				DO NOTHING
+				`,
+			)
+			if err != nil {
+				err = fmt.Errorf("topic insert prep err: %w", err)
+				p.err = err
+				return err
+			}
+			_, err = stmt.ExecContext(
+				p.ctx,
+				topicName,
+				topicURL,
+			)
+			if err != nil {
+				err = fmt.Errorf("topic insert err: %w", err)
+				p.err = err
+				return err
+			}
+
+			// get the id
+			var topicID int
+			stmt, err = p.Prep(
+				`
+				SELECT id FROM Topic
+				WHERE Name = ?
+				`,
+			)
+			if err != nil {
+				err = fmt.Errorf("topic select prep err: %w", err)
+				p.err = err
+				return err
+			}
+			err = stmt.QueryRowContext(
+				p.ctx,
+				topicName,
+			).Scan(&topicID)
+			if err != nil {
+				err = fmt.Errorf("topic select scan err: %w", err)
+				p.err = err
+				return err
+			}
+
+			// insert Repo_Topic
+			stmt, err = p.Prep(
+				`
+				INSERT INTO Repo_Topic (
+					Repo_id,
+					Topic_id
+				)
+				VALUES (?, ?)
+				`,
+			)
+			if err != nil {
+				err = fmt.Errorf("repo_topic insert prep err: %w", err)
+				p.err = err
+				return err
+			}
+			_, err = stmt.ExecContext(
+				p.ctx,
+				repoID,
+				topicID,
+			)
+			if err != nil {
+				err = fmt.Errorf("repo_topic insert err: %s: %w", sr.Node.NameWithOwner, err)
+				p.err = err
+				return err
+			}
+		}
 	}
 
 	return nil

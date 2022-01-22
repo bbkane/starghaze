@@ -29,7 +29,9 @@ CREATE TABLE Language_Repo (
 CREATE TABLE Topic (
     id INTEGER PRIMARY KEY NOT NULL,
     Name TEXT NOT NULL,
-    UNIQUE(Name)
+    Url TEXT NOT NULL,
+    UNIQUE(Name),
+    UNIQUE(Url)
 ) STRICT;
 
 CREATE TABLE Repo_Topic (
