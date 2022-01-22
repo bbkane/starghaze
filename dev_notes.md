@@ -357,3 +357,9 @@ $ cat tmp.sql | sqlite3 ./starghaze.db
 Which matches the language stats in https://github.com/maxbittker/sandspiel
 
 So that matches I suppose :)
+
+# sqlite fts
+
+```bash
+sqlite3 starghaze.db 'SELECT * FROM Repo_fts WHERE user_fts MATCH "game" ORDER BY RANK LIMIT 10'
+```
