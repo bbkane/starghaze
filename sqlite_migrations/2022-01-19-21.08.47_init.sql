@@ -8,7 +8,8 @@ CREATE TABLE Repo (
     PushedAt TEXT NOT NULL,
     StargazerCount INTEGER NOT NULL,
     UpdatedAt TEXT NOT NULL,
-    Url TEXT
+    Url TEXT,
+    UNIQUE(NameWithOwner)
 ) STRICT;
 
 CREATE TABLE Language (
