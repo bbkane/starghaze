@@ -1,6 +1,6 @@
 # stargaze
 
-Save information about starred GitHub repos to a CSV or JSON file, and upload CSVs to Google Sheets!
+Save information about your GitHub starred repos into Google Sheets, Zinc, and SQLite!
 
 Thanks to https://github.com/yks0000/starred-repo-toc for the inspiration!
 
@@ -19,8 +19,8 @@ GraphQL and Google Sheets auth notes at [./dev_notes.md](./dev_notes.md)
 
 ```bash
 GITHUB_TOKEN=my_github_token starghaze download \
-	--include-readmes true \
-	--output stars.jsonl
+    --include-readmes true \
+    --output stars.jsonl
 ```
 
 ## Google Sheets
@@ -29,9 +29,9 @@ GITHUB_TOKEN=my_github_token starghaze download \
 
 ````bash
 starghaze format \
-	--format csv \
-	--include-readmes false \
-	--output stars.csv
+    --format csv \
+    --include-readmes false \
+    --output stars.csv
 ````
 
 ### Upload CSV to Google Sheets
@@ -56,10 +56,10 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/keys.json starghaze gsheets upload \
 
 ```bash
 starghaze format \
-	--include-readmes true \
-	--format zinc \
-	--output stars.zinc \
-	--zinc-index-name starghaze
+    --include-readmes true \
+    --format zinc \
+    --output stars.zinc \
+    --zinc-index-name starghaze
 ```
 
 ### Upload to Zinc
@@ -116,4 +116,3 @@ LIMIT 10
 │ C++        │ 230        │
 └────────────┴────────────┘
 ```
-
