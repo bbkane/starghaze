@@ -1,4 +1,4 @@
-module github.com/bbkane/starghaze
+module go.bbkane.com/starghaze
 
 go 1.17
 
