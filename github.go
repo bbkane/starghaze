@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/bbkane/warg/flag"
 	"github.com/shurcooL/githubv4"
+	"go.bbkane.com/warg/flag"
 	"golang.org/x/oauth2"
 )
 

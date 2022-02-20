@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bbkane/warg/flag"
 	"github.com/lestrrat-go/strftime"
+	"go.bbkane.com/warg/flag"
 	_ "modernc.org/sqlite"
 )
 
