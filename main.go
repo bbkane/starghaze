@@ -10,7 +10,7 @@ import (
 	"go.bbkane.com/warg/value"
 )
 
-func main() {
+func app() *warg.App {
 
 	downloadCmd := command.New(
 		"Download star info",
@@ -171,7 +171,6 @@ func main() {
 	)
 
 	app := warg.New(
-		"starghaze",
 		section.New(
 			"Save GitHub Starred Repos",
 			section.Command(
@@ -192,6 +191,11 @@ func main() {
 				gsheetsSection,
 			),
 		),
+		warg.SkipValidation(),
 	)
-	app.MustRun(os.Args, os.LookupEnv)
+	return &app
+}
+
+func main() {
+	app().MustRun(os.Args, os.LookupEnv)
 }
