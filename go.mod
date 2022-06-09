@@ -1,6 +1,6 @@
 module go.bbkane.com/starghaze
 
-go 1.17
+go 1.18
 
 // Useful for local development
 // replace go.bbkane.com/warg => /Users/bbkane/Git/warg
