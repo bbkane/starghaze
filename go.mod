@@ -8,7 +8,7 @@ go 1.17
 require (
 	github.com/lestrrat-go/strftime v1.0.5
 	github.com/shurcooL/githubv4 v0.0.0-20211117020012-5800b9de5b8b
-	go.bbkane.com/warg v0.0.13
+	go.bbkane.com/warg v0.0.15
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	google.golang.org/api v0.62.0
 	modernc.org/sqlite v1.14.5
@@ -27,11 +27,12 @@ require (
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
+	github.com/xhit/go-str2duration/v2 v2.0.0 // indirect
 	go.bbkane.com/gocolor v0.0.4 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420 // indirect
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
+	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect

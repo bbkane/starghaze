@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/strftime"
-	"go.bbkane.com/warg/flag"
+	"go.bbkane.com/warg/command"
 	_ "modernc.org/sqlite"
 )
 
@@ -602,14 +602,14 @@ func (d *formattedDate) FormatString() (string, error) {
 	return d.Format.FormatString(t), nil
 }
 
-func format(pf flag.PassedFlags) error {
-	format := pf["--format"].(string)
-	includeReadmes := pf["--include-readmes"].(bool)
-	maxLineSize := pf["--max-line-size"].(int)
-	sqliteDSN := pf["--sqlite-dsn"].(string)
-	zincIndexName := pf["--zinc-index-name"].(string)
+func format(ctx command.Context) error {
+	format := ctx.Flags["--format"].(string)
+	includeReadmes := ctx.Flags["--include-readmes"].(bool)
+	maxLineSize := ctx.Flags["--max-line-size"].(int)
+	sqliteDSN := ctx.Flags["--sqlite-dsn"].(string)
+	zincIndexName := ctx.Flags["--zinc-index-name"].(string)
 
-	dateFormatStr, dateFormatStrExists := pf["--date-format"].(string)
+	dateFormatStr, dateFormatStrExists := ctx.Flags["--date-format"].(string)
 	var dateFormat *strftime.Strftime
 	var err error
 	if dateFormatStrExists {
@@ -619,7 +619,7 @@ func format(pf flag.PassedFlags) error {
 		}
 	}
 
-	output, outputExists := pf["--output"].(string)
+	output, outputExists := ctx.Flags["--output"].(string)
 	outputFp := os.Stdout
 	if outputExists {
 		newFP, err := os.Create(output)
@@ -658,7 +658,7 @@ func format(pf flag.PassedFlags) error {
 	}
 
 	// https://stackoverflow.com/a/16615559/2958070
-	input := pf["--input"].(string)
+	input := ctx.Flags["--input"].(string)
 	inputFp, err := os.Open(input)
 	if err != nil {
 		return fmt.Errorf("file open err: %w", err)

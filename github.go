@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/shurcooL/githubv4"
-	"go.bbkane.com/warg/flag"
+	"go.bbkane.com/warg/command"
 	"golang.org/x/oauth2"
 )
 
@@ -59,22 +59,22 @@ type Query struct {
 	}
 }
 
-func githubStarsDownload(pf flag.PassedFlags) error {
-	token := pf["--token"].(string)
-	pageSize := pf["--page-size"].(int)
-	maxPages := pf["--max-pages"].(int)
-	timeout := pf["--timeout"].(time.Duration)
-	includeReadmes := pf["--include-readmes"].(bool)
-	maxLanguages := pf["--max-languages"].(int)
-	maxRepoTopics := pf["--max-repo-topics"].(int)
+func githubStarsDownload(ctx command.Context) error {
+	token := ctx.Flags["--token"].(string)
+	pageSize := ctx.Flags["--page-size"].(int)
+	maxPages := ctx.Flags["--max-pages"].(int)
+	timeout := ctx.Flags["--timeout"].(time.Duration)
+	includeReadmes := ctx.Flags["--include-readmes"].(bool)
+	maxLanguages := ctx.Flags["--max-languages"].(int)
+	maxRepoTopics := ctx.Flags["--max-repo-topics"].(int)
 
 	var afterPtr *string = nil
-	afterStr, afterExists := pf["--after-cursor"].(string)
+	afterStr, afterExists := ctx.Flags["--after-cursor"].(string)
 	if afterExists {
 		afterPtr = &afterStr
 	}
 
-	outputPath := pf["--output"].(string)
+	outputPath := ctx.Flags["--output"].(string)
 	// https://pkg.go.dev/os?utm_source=gopls#pkg-constants
 	// return error if the file exists - NOTE: this kind of screws with any plans to append
 	fp, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0666)
@@ -86,12 +86,12 @@ func githubStarsDownload(pf flag.PassedFlags) error {
 	buf := bufio.NewWriter(fp)
 	defer buf.Flush()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	timeCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
-	httpClient := oauth2.NewClient(ctx, src)
+	httpClient := oauth2.NewClient(timeCtx, src)
 	client := githubv4.NewClient(httpClient)
 
 	var query Query
@@ -105,7 +105,7 @@ func githubStarsDownload(pf flag.PassedFlags) error {
 	}
 
 	for i := 0; i < maxPages; i++ {
-		err := client.Query(ctx, &query, variables)
+		err := client.Query(timeCtx, &query, variables)
 		if err != nil {
 			return fmt.Errorf(
 				"afterToken: %v , query err: %w",

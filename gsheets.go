@@ -8,15 +8,15 @@ import (
 	"runtime"
 	"time"
 
-	"go.bbkane.com/warg/flag"
+	"go.bbkane.com/warg/command"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
-func gSheetsOpen(pf flag.PassedFlags) error {
-	spreadsheetId := pf["--spreadsheet-id"].(string)
-	sheetID := pf["--sheet-id"].(int)
+func gSheetsOpen(ctx command.Context) error {
+	spreadsheetId := ctx.Flags["--spreadsheet-id"].(string)
+	sheetID := ctx.Flags["--sheet-id"].(int)
 
 	link := fmt.Sprintf(
 		"https://docs.google.com/spreadsheets/d/%s/edit#gid=%d",
@@ -43,12 +43,12 @@ func gSheetsOpen(pf flag.PassedFlags) error {
 	return nil
 }
 
-func gSheetsUpload(pf flag.PassedFlags) error {
-	csvPath := pf["--csv-path"].(string)
-	spreadsheetId := pf["--spreadsheet-id"].(string)
-	sheetID := pf["--sheet-id"].(int)
-	timeout := pf["--timeout"].(time.Duration)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func gSheetsUpload(ctx command.Context) error {
+	csvPath := ctx.Flags["--csv-path"].(string)
+	spreadsheetId := ctx.Flags["--spreadsheet-id"].(string)
+	sheetID := ctx.Flags["--sheet-id"].(int)
+	timeout := ctx.Flags["--timeout"].(time.Duration)
+	timeCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	csvBytes, err := ioutil.ReadFile(csvPath)
@@ -57,12 +57,12 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 	}
 	csvStr := string(csvBytes)
 
-	creds, err := google.FindDefaultCredentials(ctx, sheets.SpreadsheetsScope)
+	creds, err := google.FindDefaultCredentials(timeCtx, sheets.SpreadsheetsScope)
 	if err != nil {
 		return fmt.Errorf("can't find default credentials: %w", err)
 	}
 
-	srv, err := sheets.NewService(ctx, option.WithCredentials(creds))
+	srv, err := sheets.NewService(timeCtx, option.WithCredentials(creds))
 	if err != nil {
 		return fmt.Errorf("unable to retrieve Sheets client: %w", err)
 	}
@@ -101,7 +101,7 @@ func gSheetsUpload(pf flag.PassedFlags) error {
 	resp, err := srv.Spreadsheets.BatchUpdate(
 		spreadsheetId,
 		rb,
-	).Context(ctx).Do()
+	).Context(timeCtx).Do()
 	if err != nil {
 		return fmt.Errorf("batch error failure: %w", err)
 	}
