@@ -1,3 +1,4 @@
+*.jsonl
 dist/
 starghaze
 starghaze-sa-keys.json
