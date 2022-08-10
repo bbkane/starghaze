@@ -8,7 +8,14 @@ GraphQL and Google Sheets auth notes at [./dev_notes.md](./dev_notes.md)
 
 ## Install
 
-- Homebrew: `brew install bbkane/tap/starghaze`
+- [Homebrew](https://brew.sh/): `brew install bbkane/tap/starghaze`
+- [Scoop](https://scoop.sh/):
+
+```
+scoop bucket add bbkane https://github.com/bbkane/scoop-bucket
+scoop install bbkane/starghaze
+```
+
 - Download Mac/Linux/Windows executable: [GitHub releases](https://github.com/bbkane/starghaze/releases)
 - Go: `go install go.bbkane.com/starghaze@latest`
 - Build with [goreleaser](https://goreleaser.com/) after cloning: `goreleaser --snapshot --skip-publish --rm-dist`

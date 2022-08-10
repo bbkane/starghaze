@@ -6,6 +6,7 @@ before:
     - go mod download
     # you may remove this if you don't need go generate
     # - go generate ./...
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -26,6 +27,7 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+
 # https://goreleaser.com/customization/homebrew/
 brews:
   - tap:
@@ -41,3 +43,14 @@ brews:
       See https://www.macworld.com/article/3140183/how-to-install-an-app-in-macos-sierra-thats-not-signed-by-a-developer.html to work around that
     homepage: "https://github.com/bbkane/starghaze"
     description: "Save GitHub Starred Repo Information"
+
+# https://goreleaser.com/customization/scoop/
+scoop:
+  bucket:
+    owner: bbkane
+    name: scoop-bucket
+    token: "{{ .Env.KEY_GITHUB_GORELEASER_TO_HOMEBREW_TAP }}"
+  description: "Save information about your GitHub starred repos into Google Sheets, Zinc, and SQLite!"
+  homepage: "https://github.com/bbkane/starghaze"
+  license: MIT
+
