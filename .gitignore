@@ -4,5 +4,6 @@ dist/
 starghaze
 starghaze-sa-keys.json
 starghaze.db
+starghaze.exe
 starghaze_download.jsonl
 tmp*
