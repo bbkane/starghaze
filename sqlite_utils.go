@@ -83,7 +83,9 @@ func withTx(db *sql.DB, txFunc func(tx *sql.Tx) error) error {
 		err = fmt.Errorf("can't begin tx: %w", err)
 		return err
 	}
-	defer tx.Rollback() // will not succeed if tx.Commit is called
+	// will not succeed if tx.Commit is called
+	// explicitly ignore the error
+	defer func() { _ = tx.Rollback() }()
 
 	// do da magic
 	err = txFunc(tx)

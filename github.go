@@ -89,7 +89,12 @@ func githubStarsDownload(ctx command.Context) error {
 	timeCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	src := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
+		&oauth2.Token{
+			AccessToken:  token,
+			TokenType:    "",
+			RefreshToken: "",
+			Expiry:       time.Time{},
+		},
 	)
 	httpClient := oauth2.NewClient(timeCtx, src)
 	client := githubv4.NewClient(httpClient)

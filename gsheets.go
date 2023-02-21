@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
+
 	"os/exec"
 	"runtime"
 	"time"
@@ -39,8 +40,8 @@ func gSheetsOpen(ctx command.Context) error {
 		cmd = "xdg-open"
 	}
 	args = append(args, link)
-	exec.Command(cmd, args...).Start()
-	return nil
+	return exec.Command(cmd, args...).Start()
+
 }
 
 func gSheetsUpload(ctx command.Context) error {
@@ -51,7 +52,7 @@ func gSheetsUpload(ctx command.Context) error {
 	timeCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	csvBytes, err := ioutil.ReadFile(csvPath)
+	csvBytes, err := os.ReadFile(csvPath)
 	if err != nil {
 		return fmt.Errorf("csv read error: %s: %w", csvPath, err)
 	}
@@ -74,8 +75,18 @@ func gSheetsUpload(ctx command.Context) error {
 			UpdateCells: &sheets.UpdateCellsRequest{
 				Fields: "*",
 				Range: &sheets.GridRange{
-					SheetId: 0,
+					SheetId:          0, // TODO: test this...
+					EndColumnIndex:   0,
+					EndRowIndex:      0,
+					StartColumnIndex: 0,
+					StartRowIndex:    0,
+					ForceSendFields:  nil,
+					NullFields:       nil,
 				},
+				Rows:            nil,
+				Start:           nil,
+				ForceSendFields: nil,
+				NullFields:      nil,
 			},
 		},
 		// https://stackoverflow.com/q/42362702/2958070
@@ -85,17 +96,27 @@ func gSheetsUpload(ctx command.Context) error {
 					ColumnIndex: 0,
 					RowIndex:    0,
 					// https://developers.google.com/sheets/api/guides/concepts
-					SheetId: int64(sheetID), // TODO: prefer reading an int64 flag, not casting :)
+					SheetId:         int64(sheetID), // TODO: prefer reading an int64 flag, not casting :)
+					ForceSendFields: nil,
+					NullFields:      nil,
 				},
-				Data:      csvStr,
-				Delimiter: ",",
-				Type:      "PASTE_NORMAL",
+				Data:            csvStr,
+				Delimiter:       ",",
+				Type:            "PASTE_NORMAL",
+				Html:            false,
+				ForceSendFields: nil,
+				NullFields:      nil,
 			},
 		},
 	}
 
 	rb := &sheets.BatchUpdateSpreadsheetRequest{
-		Requests: requests,
+		Requests:                     requests,
+		IncludeSpreadsheetInResponse: false,
+		ResponseIncludeGridData:      false,
+		ResponseRanges:               nil,
+		ForceSendFields:              nil,
+		NullFields:                   nil,
 	}
 
 	resp, err := srv.Spreadsheets.BatchUpdate(

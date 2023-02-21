@@ -466,7 +466,10 @@ func (p *SqlitePrinter) Line(sr *starredRepositoryEdge) error {
 func (p *SqlitePrinter) Flush() error {
 
 	if p.err != nil {
-		p.tx.Rollback()
+		err := p.tx.Rollback()
+		if err != nil {
+			return fmt.Errorf("rollback err: %w", err)
+		}
 	}
 	err := p.tx.Commit()
 	if err != nil {
