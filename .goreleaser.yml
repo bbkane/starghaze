@@ -6,7 +6,6 @@ before:
     - go mod download
     # you may remove this if you don't need go generate
     # - go generate ./...
-
 builds:
   - env:
       - CGO_ENABLED=0
@@ -18,7 +17,7 @@ builds:
       - amd64
       # - i386  # does anyone care about i386?
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser
+      - -s -w -X main.version=v{{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser
 checksum:
   name_template: "checksums.txt"
 changelog:
@@ -27,7 +26,6 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-
 # https://goreleaser.com/customization/homebrew/
 brews:
   - tap:
@@ -43,7 +41,6 @@ brews:
       See https://www.macworld.com/article/3140183/how-to-install-an-app-in-macos-sierra-thats-not-signed-by-a-developer.html to work around that
     homepage: "https://github.com/bbkane/starghaze"
     description: "Save GitHub Starred Repo Information"
-
 # https://goreleaser.com/customization/scoop/
 scoop:
   bucket:
@@ -53,4 +50,3 @@ scoop:
   description: "Save information about your GitHub starred repos into Google Sheets, Zinc, and SQLite!"
   homepage: "https://github.com/bbkane/starghaze"
   license: MIT
-
