@@ -16,7 +16,7 @@ brews:
     description: Save GitHub Starred Repo Information
     folder: Formula
     homepage: https://github.com/bbkane/starghaze
-    tap:
+    repository:
       name: homebrew-tap
       owner: bbkane
       # Optionally a token can be provided, if it differs from the token provided to GoReleaser
@@ -41,12 +41,11 @@ changelog:
   sort: asc
 checksum:
   name_template: checksums.txt
-# https://goreleaser.com/customization/scoop/
-scoop:
-  bucket:
-    name: scoop-bucket
-    owner: bbkane
-    token: '{{ .Env.KEY_GITHUB_GORELEASER_TO_HOMEBREW_TAP }}'
-  description: Save information about your GitHub starred repos into Google Sheets, Zinc, and SQLite!
-  homepage: https://github.com/bbkane/starghaze
-  license: MIT
+scoops:
+  - description: Save information about your GitHub starred repos into Google Sheets, Zinc, and SQLite!
+    homepage: https://github.com/bbkane/starghaze
+    license: MIT
+    repository:
+      name: scoop-bucket
+      owner: bbkane
+      token: '{{ .Env.KEY_GITHUB_GORELEASER_TO_HOMEBREW_TAP }}'
