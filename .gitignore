@@ -1,5 +1,7 @@
 *.jsonl
 *bak
+.DS_Store
+__debug_bin*
 dist/
 starghaze
 starghaze-sa-keys.json
