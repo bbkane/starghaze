@@ -6,6 +6,10 @@ Thanks to https://github.com/yks0000/starred-repo-toc for the inspiration!
 
 GraphQL and Google Sheets auth notes at [./dev_notes.md](./dev_notes.md)
 
+## Project Status
+
+Not actively developed - I'm not really using `starghaze` anymore. I'm watching issues; please open one for any questions and especially BEFORE submitting a Pull Request.
+
 ## Install
 
 - [Homebrew](https://brew.sh/): `brew install bbkane/tap/starghaze`
