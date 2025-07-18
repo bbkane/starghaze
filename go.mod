@@ -1,6 +1,6 @@
 module go.bbkane.com/starghaze
 
-go 1.18
+go 1.23.0
 
 // Useful for local development
 // replace go.bbkane.com/warg => /Users/bbkane/Git/warg
@@ -9,7 +9,7 @@ require (
 	github.com/lestrrat-go/strftime v1.0.5
 	github.com/shurcooL/githubv4 v0.0.0-20211117020012-5800b9de5b8b
 	go.bbkane.com/warg v0.0.15
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+	golang.org/x/oauth2 v0.27.0
 	google.golang.org/api v0.62.0
 	modernc.org/sqlite v1.14.5
 )
